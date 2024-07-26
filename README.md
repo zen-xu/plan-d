@@ -1,2 +1,2 @@
-# plan-b
-Python Language's Another Nonpareil remote deBugger
+# plan-d
+Python Language's Another Nonpareil remote Debugger

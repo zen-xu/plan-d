@@ -1,0 +1,82 @@
+[tool.poetry]
+authors = ["ZhengYu, Xu <zen-xu@outlook.com>"]
+description = "Python Language's Another Nonpareil remote Debugger"
+name = "plan-d"
+readme = "README.md"
+version = "0.1.0b0" # version anchor
+classifiers = [
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+]
+
+[tool.poetry.dependencies]
+python = "^3.8,<3.12"
+
+[tool.poetry.group.test.dependencies]
+mypy = { version = "^1.9", python = "^3.10" }
+nox = "^2024.4.15"
+pytest = "<8.0"
+pytest-cov = "^4.1.0"
+pytest-mypy-plugins = { version = "^3", python = "^3.10" }
+
+[build-system]
+build-backend = "poetry.core.masonry.api"
+requires = ["poetry-core"]
+
+[tool.commitizen]
+bump_message = "chore(release): bump version $current_version -> $new_version"
+pre_bump_hooks = ["./update-changelog.sh"]
+version = "0.1.0b0"                                                            # version anchor
+version_files = ["pyproject.toml:version anchor", "plan_d/__init__.py"]
+
+[tool.ruff]
+extend-exclude = [
+  "docs/*",
+  # External to the project's coding standards
+  "tests/**/fixtures/*",
+]
+fix = true
+line-length = 88
+target-version = "py38"
+
+[tool.ruff.lint]
+extend-select = [
+  "B",   # flake8-bugbear
+  "C4",  # flake8-comprehensions
+  "ERA", # flake8-eradicate/eradicate
+  "I",   # isort
+  "N",   # pep8-naming
+  "PIE", # flake8-pie
+  "PGH", # pygrep
+  "RUF", # ruff checks
+  "SIM", # flake8-simplify
+  "TCH", # flake8-type-checking
+  "TID", # flake8-tidy-imports
+  "UP",  # pyupgrade
+]
+ignore = [
+  "B904", # use 'raise ... from err'
+  "B905", # use explicit 'strict=' parameter with 'zip()'
+  "N818", # Exception name should be named with an Error suffix
+]
+unfixable = [
+  "ERA", # do not auto remove commented out code
+]
+
+[tool.ruff.lint.isort]
+force-single-line = true
+known-first-party = ["plan_d"]
+lines-after-imports = 2
+lines-between-types = 1
+required-imports = ["from __future__ import annotations"]
+
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.mypy]
+explicit_package_bases = true
+files = "plan_d"
+namespace_packages = true
+show_error_codes = true
