@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import io
 import subprocess
 import sys
 
@@ -121,17 +120,18 @@ class RemoteDebugger(RemoteIPythonDebugger):
         (unless an overridden 'postcmd()' behaves differently)
         """
         try:
-            line = line.strip()
-            if line.startswith("%"):
-                if line.startswith("%%"):
-                    self.error(
-                        "Cell magics (multiline) are not yet supported. "
-                        "Use a single '%' instead."
-                    )
+            with self.redirect_stdout_to_message():
+                line = line.strip()
+                if line.startswith("%"):
+                    if line.startswith("%%"):
+                        self.error(
+                            "Cell magics (multiline) are not yet supported. "
+                            "Use a single '%' instead."
+                        )
+                        return False
+                    self.run_magic(line[1:])
                     return False
-                self.run_magic(line[1:])
-                return False
-            return super().onecmd(line)
+                return super().onecmd(line)
 
         except Exception as e:
             self.error(f"{type(e).__qualname__} in onecmd({line!r}): {e}")
@@ -154,29 +154,29 @@ class RemoteDebugger(RemoteIPythonDebugger):
 
             if isinstance(magic_fn, Alias):
                 stdout, stderr = call_magic_fn(magic_fn, arg)
+                if stdout:
+                    self.message(stdout)
                 if stderr:
                     self.error(stderr)
                     return ""
             else:
-                std_buffer = io.StringIO()
-                with redirect_stdout(std_buffer):
-                    if magic_name in ("time", "timeit"):
-                        f_globals = self.curframe.f_globals if self.curframe else {}
-                        result = magic_fn(
-                            arg,
-                            local_ns={
-                                **self.curframe_locals,
-                                **f_globals,
-                            },
-                        )
-                    else:
-                        result = magic_fn(arg)
-                stdout = std_buffer.getvalue()
-        if stdout:
-            self.message(stdout)
+                if magic_name in ("time", "timeit"):
+                    f_globals = self.curframe.f_globals if self.curframe else {}
+                    result = magic_fn(
+                        arg,
+                        local_ns={
+                            **self.curframe_locals,
+                            **f_globals,
+                        },
+                    )
+                else:
+                    result = magic_fn(arg)
         if result is not None:
             self.message(result)
         return result
+
+    def redirect_stdout_to_message(self):
+        return redirect_stdout(self.stdout)
 
 
 def call_magic_fn(alias: Alias, rest):
