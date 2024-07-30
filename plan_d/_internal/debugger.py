@@ -289,6 +289,62 @@ class RemoteDebugger(RemoteIPythonDebugger):
         )
         self.message(codes)
 
+    def print_topics(
+        self, header: str, cmds: list[str] | None, cmdlen: int, maxcol: int
+    ) -> None:
+        if not self.console:
+            return super().print_topics(header, cmds, cmdlen, maxcol)
+
+        from rich import box
+        from rich.style import Style
+        from rich.table import Table
+
+        cmds = cmds or []
+        # Get the console width
+        console_width = self.console.width
+
+        # Determine the length of the longest string
+        max_item_length = max(len(item) for item in cmds)
+
+        # Calculate the maximum number of columns that fit within the console width
+        # Add 2 to max_item_length for padding, and 3 for column separation (|--)
+        column_width = max_item_length + 2
+        num_columns = min(max(1, (console_width + 1) // (column_width + 3)), len(cmds))
+
+        # Calculate the number of rows needed
+        num_rows = -(-len(cmds) // num_columns)  # Equivalent to math.ceil
+
+        # Create a Table object
+        table = Table(
+            title=header,
+            show_header=False,
+            expand=True,
+            box=box.SIMPLE_HEAD,
+            title_style=Style(color="cyan", bold=True, italic=True),
+        )
+
+        # Add columns to the table
+        for col_index in range(num_columns):
+            table.add_column(
+                str(col_index), justify="center", style=Style(color="yellow")
+            )
+
+        # Fill the table with the items
+        for row_index in range(num_rows):
+            row_data = []
+            for col_index in range(num_columns):
+                # Calculate the index in the string_list
+                item_index = row_index + col_index * num_rows
+                # Append the item if the index is within the list's length
+                if item_index < len(cmds):
+                    row_data.append(cmds[item_index])
+                else:
+                    row_data.append("")  # Fill with empty string if out of range
+            table.add_row(*row_data)
+
+        # Print the table to the console
+        self.message(table)
+
     # =========== methods ===========
 
     def run_magic(self, line) -> str:
