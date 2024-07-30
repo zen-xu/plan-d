@@ -212,6 +212,21 @@ class RemoteDebugger(RemoteIPythonDebugger):
         else:
             print("\n".join(map(str, msgs)), file=self.stdout, end=end)
 
+    def print_list_lines(self, filename: str, first: int, last: int):
+        if self.console:
+            from rich.syntax import Syntax
+
+            codes = Syntax.from_path(
+                filename,
+                line_numbers=True,
+                theme=self.syntax_theme,
+                line_range=(first, last),
+                highlight_lines={self.curframe.f_lineno},  # type: ignore[attr-defined]
+            )
+            self.message(codes)
+        else:
+            super().print_list_lines(filename, first, last)
+
     # =========== methods ===========
 
     def run_magic(self, line) -> str:
