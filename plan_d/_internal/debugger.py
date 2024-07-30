@@ -163,6 +163,18 @@ class RemoteDebugger(RemoteIPythonDebugger):
             )
         return cls.start_from_new_connection(sock)
 
+    # =========== Magic funcs ===========
+
+    def do_pinfo(self, arg):
+        with self.dumb_term(), self.disable_console():
+            return super().do_pinfo(arg)
+
+    def do_pinfo2(self, arg):
+        with self.dumb_term(), self.disable_console():
+            return super().do_pinfo2(arg)
+
+    # =========== override ===========
+
     def onecmd(self, line: str) -> bool:
         """
         Invokes 'run_magic()' if the line starts with a '%'.
@@ -187,13 +199,20 @@ class RemoteDebugger(RemoteIPythonDebugger):
             self.error(f"{type(e).__qualname__} in onecmd({line!r}): {e}")
             return False
 
-    def do_pinfo(self, arg):
-        with self.dumb_term(), self.disable_console():
-            return super().do_pinfo(arg)
+    def error(self, msg: str, end="\n") -> None:
+        if self.console:
+            self.console.print(f"[danger]{msg}[/]", end=end)
+        else:
+            msg = click.style(msg, fg="red")
+            print(f"{msg}", file=self.stdout, end=end)
 
-    def do_pinfo2(self, arg):
-        with self.dumb_term(), self.disable_console():
-            return super().do_pinfo2(arg)
+    def message(self, *msgs, end="\n") -> None:
+        if self.console:
+            self.console.print(*msgs, end=end)
+        else:
+            print("\n".join(map(str, msgs)), file=self.stdout, end=end)
+
+    # =========== methods ===========
 
     def run_magic(self, line) -> str:
         magic_name, arg, line = self.parseline(line)
@@ -279,19 +298,6 @@ class RemoteDebugger(RemoteIPythonDebugger):
         if self.console:
             self.console.height = height
             self.console.width = width
-
-    def error(self, msg: str, end="\n") -> None:
-        if self.console:
-            self.console.print(f"[danger]{msg}[/]", end=end)
-        else:
-            msg = click.style(msg, fg="red")
-            print(f"{msg}", file=self.stdout, end=end)
-
-    def message(self, *msgs, end="\n") -> None:
-        if self.console:
-            self.console.print(*msgs, end=end)
-        else:
-            print("\n".join(map(str, msgs)), file=self.stdout, end=end)
 
 
 def call_magic_fn(alias: Alias, rest):
