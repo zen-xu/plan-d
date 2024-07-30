@@ -6,4 +6,6 @@ __authors__ = [
     "ZhengYu, Xu <zen-xu@outlook.com>",
 ]
 
+from madbg import connect_to_debugger as connect_to_debugger
+
 from ._internal.api import set_trace as set_trace
