@@ -173,13 +173,10 @@ class RemoteDebugger(RemoteIPythonDebugger):
                         result = magic_fn(arg)
                 stdout = std_buffer.getvalue()
         if stdout:
-            self._print(stdout)
+            self.message(stdout)
         if result is not None:
-            self._print(result)
+            self.message(result)
         return result
-
-    def _print(self, message: str):
-        self.stdout.write(message)
 
 
 def call_magic_fn(alias: Alias, rest):
