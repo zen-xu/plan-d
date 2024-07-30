@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import linecache
 import os
 import subprocess
 import sys
@@ -212,20 +213,71 @@ class RemoteDebugger(RemoteIPythonDebugger):
         else:
             print("\n".join(map(str, msgs)), file=self.stdout, end=end)
 
-    def print_list_lines(self, filename: str, first: int, last: int):
-        if self.console:
-            from rich.syntax import Syntax
+    def print_stack_entry(self, frame_lineno, prompt_prefix="\n-> ", context=None):
+        if not self.console:
+            return super().print_stack_entry(frame_lineno, prompt_prefix, context)
 
-            codes = Syntax.from_path(
-                filename,
-                line_numbers=True,
-                theme=self.syntax_theme,
-                line_range=(first, last),
-                highlight_lines={self.curframe.f_lineno},  # type: ignore[attr-defined]
+        import reprlib
+
+        from rich.syntax import Syntax
+
+        if context is None:
+            context = self.context
+        try:
+            context = int(context)
+            if context <= 0:
+                self.message("Context must be a positive integer")
+        except (TypeError, ValueError):
+            self.message("Context must be a positive integer")
+
+        frame, lineno = frame_lineno
+
+        # s = filename + '(' + `lineno` + ')'
+        filename = self.canonic(frame.f_code.co_filename)
+
+        func = str(frame.f_code.co_name) if frame.f_code.co_name else "<lambda>"
+
+        loc_frame = self._get_frame_locals(frame)
+        call = ""
+        if func != "?":
+            args = (
+                reprlib.repr(loc_frame["__args__"]) if "__args__" in loc_frame else "()"
             )
-            self.message(codes)
-        else:
-            super().print_list_lines(filename, first, last)
+            call = f"{func}{args}"
+
+        self.message(f"> {filename}([white]{lineno}[/])[cyan]{call}[/]")
+
+        start = lineno - 1 - context // 2
+        lines = linecache.getlines(filename)
+        start = min(start, len(lines) - context)
+        start = max(start, 0)
+        lines = lines[start : start + context]
+        code = Syntax(
+            "".join(lines),
+            lexer="python",
+            theme=self.syntax_theme,
+            line_numbers=True,
+            highlight_lines={lineno},
+            start_line=start + 1,
+            line_range=(0, context),
+        )
+
+        self.message(code, end="")
+
+    def print_list_lines(self, filename: str, first: int, last: int):
+        if not self.console:
+            return super().print_list_lines(filename, first, last)
+
+        from rich.syntax import Syntax
+
+        codes = Syntax.from_path(
+            filename,
+            line_numbers=True,
+            theme=self.syntax_theme,
+            line_range=(first, last),
+            highlight_lines={self.curframe.f_lineno},  # type: ignore[attr-defined]
+        )
+        self.message(codes)
 
     # =========== methods ===========
 
