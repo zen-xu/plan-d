@@ -3,7 +3,9 @@ from __future__ import annotations
 import subprocess
 import sys
 
+from contextlib import contextmanager
 from contextlib import nullcontext
+from contextlib import redirect_stderr
 from contextlib import redirect_stdout
 from typing import TYPE_CHECKING
 from typing import TextIO
@@ -175,8 +177,10 @@ class RemoteDebugger(RemoteIPythonDebugger):
             self.message(result)
         return result
 
+    @contextmanager
     def redirect_stdio(self):
-        return redirect_stdout(self.stdout)
+        with redirect_stdout(self.stdout), redirect_stderr(self.stdout):
+            yield
 
 
 def call_magic_fn(alias: Alias, rest):
