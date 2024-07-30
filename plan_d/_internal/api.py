@@ -16,6 +16,8 @@ if TYPE_CHECKING:
 ENV_VAR_IP = "PLAND_IP"
 ENV_VAR_PORT = "PLAND_PORT"
 ENV_VAR_AUTO_SELECT_PORT = "PLAND_AUTO_SELECT_PORT"
+ENV_VAR_DISABLE_RICH = "PLAND_DISABLE_RICH"
+
 
 DEFAULT_IP = "localhost"
 DEFAULT_PORT = 3513
@@ -81,7 +83,12 @@ def set_trace(
                     {"info": "dim cyan", "warning": "magenta", "danger": "bold red"}
                 ),
             )
-    debugger.console = console
+
+    if os.getenv(ENV_VAR_DISABLE_RICH, "no").lower() in ["1", "true", "yes"]:
+        debugger.console = None
+    else:
+        debugger.console = console
+
     if syntax_theme:
         debugger.syntax_theme = syntax_theme
 

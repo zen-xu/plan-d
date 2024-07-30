@@ -245,7 +245,7 @@ class RemoteDebugger(RemoteIPythonDebugger):
             )
             call = f"{func}{args}"
 
-        self.message(f"> {filename}([white]{lineno}[/])[cyan]{call}[/]")
+        self.message(f"🔴 {filename}([white]{lineno}[/])[cyan]{call}[/]")
 
         start = lineno - 1 - context // 2
         lines = linecache.getlines(filename)
