@@ -167,10 +167,20 @@ class RemoteDebugger(RemoteIPythonDebugger):
     # =========== commands ===========
 
     def do_pinfo(self, arg):
+        """
+        Provide detailed information about an object.
+
+        The debugger interface to %pinfo, i.e., obj?.
+        """
         with self.dumb_term(), self.disable_console():
             return super().do_pinfo(arg)
 
     def do_pinfo2(self, arg):
+        """
+        Provide extra detailed information about an object.
+
+        The debugger interface to %pinfo2, i.e., obj??.
+        """
         with self.dumb_term(), self.disable_console():
             return super().do_pinfo2(arg)
 
