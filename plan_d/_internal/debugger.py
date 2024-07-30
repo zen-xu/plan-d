@@ -120,7 +120,7 @@ class RemoteDebugger(RemoteIPythonDebugger):
         (unless an overridden 'postcmd()' behaves differently)
         """
         try:
-            with self.redirect_stdout_to_message():
+            with self.redirect_stdio():
                 line = line.strip()
                 if line.startswith("%"):
                     if line.startswith("%%"):
@@ -175,7 +175,7 @@ class RemoteDebugger(RemoteIPythonDebugger):
             self.message(result)
         return result
 
-    def redirect_stdout_to_message(self):
+    def redirect_stdio(self):
         return redirect_stdout(self.stdout)
 
 
