@@ -21,7 +21,7 @@ classifiers = [
 
 [tool.poetry.dependencies]
 python = "^3.8"
-madbg = "^1.3.2"
+madbg  = "^1.3.2"
 
 [tool.poetry.group.test.dependencies]
 mypy       = { version = "^1.9", python = "^3.10" }
@@ -81,3 +81,4 @@ explicit_package_bases = true
 files                  = "plan_d"
 namespace_packages     = true
 show_error_codes       = true
+disable_error_code     = ["import-not-found", "import-untyped"]
