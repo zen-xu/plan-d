@@ -50,9 +50,6 @@ def default_accepted_message(client_address: str) -> str:
     return f"RemotePdb accepted connection from {client_address}."
 
 
-DEFAULT_PROMPT = "plan-d> "
-
-
 class RemoteDebugger(RemoteIPythonDebugger):
     def __init__(
         self,
