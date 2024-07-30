@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import io
+import subprocess
 import sys
 
 from contextlib import nullcontext
+from contextlib import redirect_stdout
 from typing import TYPE_CHECKING
 from typing import TextIO
 
+from IPython.core.alias import Alias
 from IPython.terminal.debugger import TerminalPdb
 from IPython.terminal.interactiveshell import TerminalInteractiveShell
 from IPython.terminal.ptutils import IPythonPTLexer
@@ -109,3 +113,96 @@ class RemoteDebugger(RemoteIPythonDebugger):
                 flush=True,
             )
         return cls.start_from_new_connection(sock)
+
+    def onecmd(self, line: str) -> bool:
+        """
+        Invokes 'run_magic()' if the line starts with a '%'.
+        The loop stops of this function returns True.
+        (unless an overridden 'postcmd()' behaves differently)
+        """
+        try:
+            line = line.strip()
+            if line.startswith("%"):
+                if line.startswith("%%"):
+                    self.error(
+                        "Cell magics (multiline) are not yet supported. "
+                        "Use a single '%' instead."
+                    )
+                    return False
+                self.run_magic(line[1:])
+                return False
+            return super().onecmd(line)
+
+        except Exception as e:
+            self.error(f"{type(e).__qualname__} in onecmd({line!r}): {e}")
+            return False
+
+    def run_magic(self, line) -> str:
+        magic_name, arg, line = self.parseline(line)
+        result = stdout = ""
+        if hasattr(self, f"do_{magic_name}"):
+            # We want to use do_{magic_name} methods if defined.
+            # This is indeed the case with do_pdef, do_pdoc etc,
+            # which are defined by our base class (IPython.core.debugger.Pdb).
+            result = getattr(self, f"do_{magic_name}")(arg)
+        else:
+            assert self.shell
+            magic_fn = self.shell.find_line_magic(magic_name)
+            if not magic_fn:
+                self.error(f"Line Magic %{magic_name} not found")
+                return ""
+
+            if isinstance(magic_fn, Alias):
+                stdout, stderr = call_magic_fn(magic_fn, arg)
+                if stderr:
+                    self.error(stderr)
+                    return ""
+            else:
+                std_buffer = io.StringIO()
+                with redirect_stdout(std_buffer):
+                    if magic_name in ("time", "timeit"):
+                        f_globals = self.curframe.f_globals if self.curframe else {}
+                        result = magic_fn(
+                            arg,
+                            local_ns={
+                                **self.curframe_locals,
+                                **f_globals,
+                            },
+                        )
+                    else:
+                        result = magic_fn(arg)
+                stdout = std_buffer.getvalue()
+        if stdout:
+            self._print(stdout)
+        if result is not None:
+            self._print(result)
+        return result
+
+    def _print(self, message: str):
+        self.stdout.write(message)
+
+
+def call_magic_fn(alias: Alias, rest):
+    cmd = alias.cmd
+    nargs = alias.nargs
+    # Expand the %l special to be the user's input line
+    if cmd.find("%l") >= 0:
+        cmd = cmd.replace("%l", rest)
+        rest = ""
+
+    if nargs == 0:
+        if cmd.find("%%s") >= 1:
+            cmd = cmd.replace("%%s", "%s")
+        # Simple, argument-less aliases
+        cmd = f"{cmd} {rest}"
+    else:
+        # Handle aliases with positional arguments
+        args = rest.split(None, nargs)
+        if len(args) < nargs:
+            raise RuntimeError(
+                f"Alias <{alias.name}> requires {nargs} arguments, {len(args)} given."
+            )
+        cmd = "{} {}".format(cmd % tuple(args[:nargs]), " ".join(args[nargs:]))
+    return subprocess.Popen(
+        cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+    ).communicate()
