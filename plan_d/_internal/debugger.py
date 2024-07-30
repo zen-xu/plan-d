@@ -14,6 +14,8 @@ from termios import tcdrain
 from typing import TYPE_CHECKING
 from typing import TextIO
 
+import click
+
 from IPython.core.alias import Alias
 from IPython.terminal.debugger import TerminalPdb
 from IPython.terminal.interactiveshell import TerminalInteractiveShell
@@ -208,15 +210,15 @@ class RemoteDebugger(RemoteIPythonDebugger):
             assert self.shell
             magic_fn = self.shell.find_line_magic(magic_name)
             if not magic_fn:
-                print(f"Line Magic %{magic_name} not found")
+                self.error(f"Line Magic %{magic_name} not found")
                 return ""
 
             if isinstance(magic_fn, Alias):
                 stdout, stderr = call_magic_fn(magic_fn, arg)
                 if stdout:
-                    print(stdout)
+                    self.message(stdout)
                 if stderr:
-                    print(stderr)
+                    self.error(stderr)
                     return ""
             else:
                 if magic_name in ("time", "timeit"):
@@ -231,23 +233,32 @@ class RemoteDebugger(RemoteIPythonDebugger):
                 else:
                     result = magic_fn(arg)
         if result is not None:
-            print(result)
+            self.message(result)
         return result
 
     @contextmanager
     def redirect_stdio(self):
-        class IOWrapper(io.StringIO):
+        class StdoutWrapper(io.StringIO):
             def __init__(self, debugger: RemoteDebugger):
                 self.debugger = debugger
 
             def write(self, data):
-                self.debugger.message(data)
+                self.debugger.message(data, end="")
 
             def flush(self):
-                pass
+                ...
 
-        redirect = IOWrapper(self)
-        with redirect_stdout(redirect), redirect_stderr(redirect):
+        class StderrWrapper(io.StringIO):
+            def __init__(self, debugger: RemoteDebugger):
+                self.debugger = debugger
+
+            def write(self, data):
+                self.debugger.error(data, end="")
+
+            def flush(self):
+                ...
+
+        with redirect_stdout(StdoutWrapper(self)), redirect_stderr(StderrWrapper(self)):
             yield
 
     @contextmanager
@@ -272,14 +283,18 @@ class RemoteDebugger(RemoteIPythonDebugger):
             self.console.height = height
             self.console.width = width
 
-    def error(self, msg: str) -> None:
-        return self.message(f"[danger]{msg}[/]")
-
-    def message(self, *msgs) -> None:
+    def error(self, msg: str, end="\n") -> None:
         if self.console:
-            self.console.print(*msgs, end="")
+            self.console.print(f"[danger]{msg}[/]", end=end)
         else:
-            super().message("\n".join(map(str, msgs)))
+            msg = click.style(msg, fg="red")
+            print(f"{msg}", file=self.stdout, end=end)
+
+    def message(self, *msgs, end="\n") -> None:
+        if self.console:
+            self.console.print(*msgs, end=end)
+        else:
+            print("\n".join(map(str, msgs)), file=self.stdout, end=end)
 
 
 def call_magic_fn(alias: Alias, rest):
