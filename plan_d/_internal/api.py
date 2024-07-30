@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 
+from contextlib import suppress
 from inspect import currentframe
 from typing import TYPE_CHECKING
 from typing import Callable
@@ -10,6 +11,7 @@ from typing import Callable
 if TYPE_CHECKING:
     from types import FrameType
 
+    from rich.console import Console
 
 ENV_VAR_IP = "PLAND_IP"
 ENV_VAR_PORT = "PLAND_PORT"
@@ -27,6 +29,8 @@ def set_trace(
     hello_message: Callable[[str, int], str] | None = None,
     accepted_message: Callable[[str], str] | None = None,
     prompt: str | None = None,
+    console: Console | None = None,
+    syntax_theme: str | None = None,
 ) -> None:
     from madbg.utils import use_context
 
@@ -59,4 +63,26 @@ def set_trace(
     if not prompt.endswith(" "):
         prompt += " "
     debugger.prompt = prompt
+
+    if not console:
+        with suppress(ImportError):
+            from rich.console import Console
+            from rich.theme import Theme
+
+            console = Console(
+                file=debugger.stdout,
+                height=debugger.height,
+                width=debugger.width,
+                stderr=True,
+                force_terminal=True,
+                force_interactive=True,
+                tab_size=4,
+                theme=Theme(
+                    {"info": "dim cyan", "warning": "magenta", "danger": "bold red"}
+                ),
+            )
+    debugger.console = console
+    if syntax_theme:
+        debugger.syntax_theme = syntax_theme
+
     debugger.set_trace(frame, done_callback=exit_stack.close)

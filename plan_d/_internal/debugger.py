@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+import io
 import os
 import subprocess
 import sys
+import traceback
 
 from contextlib import contextmanager
 from contextlib import nullcontext
 from contextlib import redirect_stderr
 from contextlib import redirect_stdout
+from termios import tcdrain
 from typing import TYPE_CHECKING
 from typing import TextIO
 
@@ -15,7 +18,11 @@ from IPython.core.alias import Alias
 from IPython.terminal.debugger import TerminalPdb
 from IPython.terminal.interactiveshell import TerminalInteractiveShell
 from IPython.terminal.ptutils import IPythonPTLexer
+from madbg.communication import Piping
+from madbg.communication import receive_message
 from madbg.debugger import RemoteIPythonDebugger
+from madbg.tty_utils import PTY
+from madbg.utils import run_thread
 from prompt_toolkit.enums import DEFAULT_BUFFER
 from prompt_toolkit.filters import HasFocus
 from prompt_toolkit.filters import IsDone
@@ -29,6 +36,8 @@ from prompt_toolkit.output.vt100 import Vt100_Output as Vt100Output
 if TYPE_CHECKING:
     from contextlib import AbstractContextManager
     from typing import Callable
+
+    from rich.console import Console
 
 
 def default_hello_message(ip: str, port: int) -> str:
@@ -48,6 +57,10 @@ class RemoteDebugger(RemoteIPythonDebugger):
         stdin: TextIO,
         stdout: TextIO,
         term_type: str | None,
+        height: int,
+        width: int,
+        console: Console | None = None,
+        syntax_theme: str = "ansi_dark",
         **extra_pt_session_options,
     ) -> None:
         # fix annoying `Warning: Input is not a terminal (fd=0)`
@@ -85,6 +98,41 @@ class RemoteDebugger(RemoteIPythonDebugger):
 
         self.use_rawinput = True
         self.done_callback = None
+        self.height = height
+        self.width = width
+        self.console = console
+        self.syntax_theme = syntax_theme
+
+    @classmethod
+    @contextmanager
+    def start(cls, sock_fd: int):
+        assert cls._get_current_instance() is None
+        term_data = receive_message(sock_fd)
+        term_attrs, term_type, term_size = (
+            term_data["term_attrs"],
+            term_data["term_type"],
+            term_data["term_size"],
+        )
+        with PTY.open() as pty:
+            pty.resize(term_size[0], term_size[1])
+            pty.set_tty_attrs(term_attrs)
+            pty.make_ctty()
+            piping = Piping({sock_fd: {pty.master_fd}, pty.master_fd: {sock_fd}})
+            with run_thread(piping.run):
+                slave_reader = os.fdopen(pty.slave_fd, "r")
+                slave_writer = os.fdopen(pty.slave_fd, "w")
+                try:
+                    instance = cls(slave_reader, slave_writer, term_type, *term_size)
+                    cls._set_current_instance(instance)
+                    yield instance
+                except Exception:
+                    print(traceback.format_exc(), file=slave_writer)
+                    raise
+                finally:
+                    cls._set_current_instance(None)
+                    print("Closing connection", file=slave_writer, flush=True)
+                    tcdrain(pty.slave_fd)
+                    slave_writer.close()
 
     @classmethod
     def connect_and_start(
@@ -141,11 +189,11 @@ class RemoteDebugger(RemoteIPythonDebugger):
             return False
 
     def do_pinfo(self, arg):
-        with self.dumb_term():
+        with self.dumb_term(), self.disable_console():
             return super().do_pinfo(arg)
 
     def do_pinfo2(self, arg):
-        with self.dumb_term():
+        with self.dumb_term(), self.disable_console():
             return super().do_pinfo2(arg)
 
     def run_magic(self, line) -> str:
@@ -160,15 +208,15 @@ class RemoteDebugger(RemoteIPythonDebugger):
             assert self.shell
             magic_fn = self.shell.find_line_magic(magic_name)
             if not magic_fn:
-                self.error(f"Line Magic %{magic_name} not found")
+                print(f"Line Magic %{magic_name} not found")
                 return ""
 
             if isinstance(magic_fn, Alias):
                 stdout, stderr = call_magic_fn(magic_fn, arg)
                 if stdout:
-                    self.message(stdout)
+                    print(stdout)
                 if stderr:
-                    self.error(stderr)
+                    print(stderr)
                     return ""
             else:
                 if magic_name in ("time", "timeit"):
@@ -183,12 +231,23 @@ class RemoteDebugger(RemoteIPythonDebugger):
                 else:
                     result = magic_fn(arg)
         if result is not None:
-            self.message(result)
+            print(result)
         return result
 
     @contextmanager
     def redirect_stdio(self):
-        with redirect_stdout(self.stdout), redirect_stderr(self.stdout):
+        class IOWrapper(io.StringIO):
+            def __init__(self, debugger: RemoteDebugger):
+                self.debugger = debugger
+
+            def write(self, data):
+                self.debugger.message(data)
+
+            def flush(self):
+                pass
+
+        redirect = IOWrapper(self)
+        with redirect_stdout(redirect), redirect_stderr(redirect):
             yield
 
     @contextmanager
@@ -198,6 +257,29 @@ class RemoteDebugger(RemoteIPythonDebugger):
         os.environ["TERM"] = "dumb"
         yield
         os.environ["TERM"] = origin_term
+
+    @contextmanager
+    def disable_console(self):
+        origin_console = self.console
+        self.console = None
+        yield
+        self.console = origin_console
+
+    def resize(self, height: int, width: int):
+        self.height = height
+        self.width = width
+        if self.console:
+            self.console.height = height
+            self.console.width = width
+
+    def error(self, msg: str) -> None:
+        return self.message(f"[danger]{msg}[/]")
+
+    def message(self, *msgs) -> None:
+        if self.console:
+            self.console.print(*msgs, end="")
+        else:
+            super().message("\n".join(map(str, msgs)))
 
 
 def call_magic_fn(alias: Alias, rest):
