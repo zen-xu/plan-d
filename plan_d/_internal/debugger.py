@@ -164,7 +164,7 @@ class RemoteDebugger(RemoteIPythonDebugger):
             )
         return cls.start_from_new_connection(sock)
 
-    # =========== Magic funcs ===========
+    # =========== commands ===========
 
     def do_pinfo(self, arg):
         with self.dumb_term(), self.disable_console():

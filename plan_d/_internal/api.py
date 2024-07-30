@@ -4,8 +4,11 @@ import os
 
 from contextlib import suppress
 from inspect import currentframe
+from pdb import Pdb
 from typing import TYPE_CHECKING
 from typing import Callable
+
+from IPython.core.debugger import Pdb as IPdb
 
 
 if TYPE_CHECKING:
@@ -22,6 +25,8 @@ ENV_VAR_DISABLE_RICH = "PLAND_DISABLE_RICH"
 DEFAULT_IP = "localhost"
 DEFAULT_PORT = 3513
 DEFAULT_PROMPT = "plan-d> "
+
+BAN_CMDS = {"list"}
 
 
 def set_trace(
@@ -91,5 +96,12 @@ def set_trace(
 
     if syntax_theme:
         debugger.syntax_theme = syntax_theme
+
+    for ban_cmd in BAN_CMDS:
+        with suppress(AttributeError):
+            delattr(Pdb, f"do_{ban_cmd}")
+
+        with suppress(AttributeError):
+            delattr(IPdb, f"do_{ban_cmd}")
 
     debugger.set_trace(frame, done_callback=exit_stack.close)
