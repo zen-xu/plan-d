@@ -245,8 +245,7 @@ class RemoteDebugger(RemoteIPythonDebugger):
             def write(self, data):
                 self.debugger.message(data, end="")
 
-            def flush(self):
-                ...
+            def flush(self): ...
 
         class StderrWrapper(io.StringIO):
             def __init__(self, debugger: RemoteDebugger):
@@ -255,8 +254,7 @@ class RemoteDebugger(RemoteIPythonDebugger):
             def write(self, data):
                 self.debugger.error(data, end="")
 
-            def flush(self):
-                ...
+            def flush(self): ...
 
         with redirect_stdout(StdoutWrapper(self)), redirect_stderr(StderrWrapper(self)):
             yield
