@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 
@@ -139,6 +140,14 @@ class RemoteDebugger(RemoteIPythonDebugger):
             self.error(f"{type(e).__qualname__} in onecmd({line!r}): {e}")
             return False
 
+    def do_pinfo(self, arg):
+        with self.dumb_term():
+            return super().do_pinfo(arg)
+
+    def do_pinfo2(self, arg):
+        with self.dumb_term():
+            return super().do_pinfo2(arg)
+
     def run_magic(self, line) -> str:
         magic_name, arg, line = self.parseline(line)
         result = stdout = ""
@@ -181,6 +190,14 @@ class RemoteDebugger(RemoteIPythonDebugger):
     def redirect_stdio(self):
         with redirect_stdout(self.stdout), redirect_stderr(self.stdout):
             yield
+
+    @contextmanager
+    def dumb_term(self):
+        # disable IPython.core.page to page output
+        origin_term = os.getenv("TERM", "dumb")
+        os.environ["TERM"] = "dumb"
+        yield
+        os.environ["TERM"] = origin_term
 
 
 def call_magic_fn(alias: Alias, rest):
