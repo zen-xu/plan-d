@@ -1,14 +1,21 @@
 from __future__ import annotations
 
 import os
+import signal
 
 from contextlib import suppress
 from inspect import currentframe
 from pdb import Pdb
+from termios import tcdrain
 from typing import TYPE_CHECKING
 from typing import Callable
 
 from IPython.core.debugger import Pdb as IPdb
+from madbg import client as madbg_client
+from madbg.communication import Piping
+from madbg.communication import send_message
+
+from . import utils
 
 
 if TYPE_CHECKING:
@@ -78,8 +85,6 @@ def set_trace(
 
             console = Console(
                 file=debugger.stdout,
-                height=debugger.height,
-                width=debugger.width,
                 stderr=True,
                 force_terminal=True,
                 force_interactive=True,
@@ -92,6 +97,9 @@ def set_trace(
     if os.getenv(ENV_VAR_DISABLE_RICH, "no").lower() in ["1", "true", "yes"]:
         debugger.console = None
     else:
+        if console:
+            # Leave as None to auto-detect width.
+            console.size = (None, None)  # type: ignore[assignment]
         debugger.console = console
 
     if syntax_theme:
@@ -105,3 +113,32 @@ def set_trace(
             delattr(IPdb, f"do_{ban_cmd}")
 
     debugger.set_trace(frame, done_callback=exit_stack.close)
+
+
+def connect_to_debugger(
+    ip=DEFAULT_IP,
+    port=DEFAULT_PORT,
+    timeout=madbg_client.DEFAULT_CONNECT_TIMEOUT,
+    in_fd=madbg_client.STDIN_FILENO,
+    out_fd=madbg_client.STDOUT_FILENO,
+):
+    with madbg_client.connect_to_server(ip, port, timeout) as socket:
+        tty_handle = madbg_client.get_tty_handle()
+        term_size = utils.get_terminal_size()
+        term_data = {
+            "term_attrs": madbg_client.tcgetattr(tty_handle),
+            # prompt toolkit will receive this string, and it can be 'unknown'
+            "term_type": os.environ.get("TERM", "unknown"),
+            "term_size": (term_size.lines, term_size.columns),
+        }
+        send_message(socket, term_data)
+
+        def send_terminal_size(signum, frame):
+            utils.send_terminal_size(socket)
+
+        signal.signal(signal.SIGWINCH, send_terminal_size)
+
+        with madbg_client.prepare_terminal():
+            socket_fd = socket.fileno()
+            Piping({in_fd: {socket_fd}, socket_fd: {out_fd}}).run()
+            tcdrain(out_fd)

@@ -21,7 +21,7 @@ from IPython.core.alias import Alias
 from IPython.terminal.debugger import TerminalPdb
 from IPython.terminal.interactiveshell import TerminalInteractiveShell
 from IPython.terminal.ptutils import IPythonPTLexer
-from madbg.communication import Piping
+from madbg.communication import Piping as _Piping
 from madbg.communication import receive_message
 from madbg.debugger import RemoteIPythonDebugger
 from madbg.tty_utils import PTY
@@ -34,6 +34,8 @@ from prompt_toolkit.input.vt100 import Vt100Input
 from prompt_toolkit.layout.processors import ConditionalProcessor
 from prompt_toolkit.layout.processors import HighlightMatchingBracketProcessor
 from prompt_toolkit.output.vt100 import Vt100_Output as Vt100Output
+
+from . import utils
 
 
 if TYPE_CHECKING:
@@ -117,7 +119,9 @@ class RemoteDebugger(RemoteIPythonDebugger):
             pty.resize(term_size[0], term_size[1])
             pty.set_tty_attrs(term_attrs)
             pty.make_ctty()
-            piping = Piping({sock_fd: {pty.master_fd}, pty.master_fd: {sock_fd}})
+            piping = Piping(
+                {sock_fd: {pty.master_fd}, pty.master_fd: {sock_fd}}, sock_fd, pty
+            )
             with run_thread(piping.run):
                 slave_reader = os.fdopen(pty.slave_fd, "r")
                 slave_writer = os.fdopen(pty.slave_fd, "w")
@@ -455,3 +459,34 @@ def call_magic_fn(alias: Alias, rest):
     return subprocess.Popen(
         cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
     ).communicate()
+
+
+class Piping(_Piping):
+    def __init__(self, pipe_dict: dict[int, set[int]], client_fd: int, pty: PTY):
+        super().__init__(pipe_dict)
+        self.client_fd = client_fd
+        self.pty = pty
+
+    def _read(self, src_fd, dest_fds):
+        try:
+            data = os.read(src_fd, 1024)
+            if src_fd == self.client_fd and (
+                term_size := utils.try_deserialize_terminal_size(data)
+            ):
+                rows, cols = term_size
+                # rich console will use COLUMNS and ROWS as terminal size
+                os.environ["COLUMNS"] = str(cols)
+                os.environ["ROWS"] = str(rows)
+                self.pty.resize(*term_size)
+                return
+        except OSError:
+            data = ""
+        if data:
+            for dest_fd in dest_fds:
+                self.buffers[dest_fd] += data
+        else:
+            self._remove_reader(src_fd)
+            if src_fd in self.writers_to_readers:
+                self._remove_writer(src_fd)
+            if not self.readers_to_writers:
+                self.loop.stop()
