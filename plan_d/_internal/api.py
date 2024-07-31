@@ -3,7 +3,6 @@ from __future__ import annotations
 import os
 import signal
 import sys
-import traceback as tb
 
 from contextlib import suppress
 from inspect import currentframe
@@ -109,10 +108,6 @@ def post_mortem(
     ) as debugger:
         debugger = cast(RemoteDebugger, debugger)
         debugger = _config_debugger(debugger, prompt, console, syntax_theme)
-        if debugger.console:
-            debugger.console.print_exception()
-        else:
-            debugger.message(*tb.format_exception(*sys.exc_info()))
         debugger.post_mortem(traceback)
 
 
