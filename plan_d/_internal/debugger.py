@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import io
-import linecache
 import os
 import subprocess
 import sys
@@ -13,6 +12,7 @@ from contextlib import redirect_stderr
 from contextlib import redirect_stdout
 from contextlib import suppress
 from termios import tcdrain
+from types import TracebackType
 from typing import TYPE_CHECKING
 from typing import TextIO
 
@@ -41,6 +41,7 @@ from . import utils
 
 if TYPE_CHECKING:
     from contextlib import AbstractContextManager
+    from types import FrameType
     from typing import Callable
 
     from rich.console import Console
@@ -53,6 +54,7 @@ with suppress(ImportError):
     from rich.style import Style
     from rich.syntax import Syntax
     from rich.table import Table
+    from rich.traceback import Traceback
     from rich.tree import Tree
 
     RICH_INSTALLED = True
@@ -113,6 +115,7 @@ class RemoteDebugger(RemoteIPythonDebugger):
         self.done_callback = None
         self.console = console
         self.syntax_theme = syntax_theme
+        self.skip_print_stack_entry = False
 
     @classmethod
     @contextmanager
@@ -277,54 +280,40 @@ class RemoteDebugger(RemoteIPythonDebugger):
         else:
             print("\n".join(map(str, msgs)), file=self.stdout, end=end)
 
-    def print_stack_entry(self, frame_lineno, prompt_prefix="\n-> ", context=None):
+    def setup(self, f: FrameType | None, tb: TracebackType | None) -> None:
+        if tb:
+            if self.console:
+                self.console.print_exception()
+                self.skip_print_stack_entry = True
+            else:
+                self.message(*traceback.format_exception(*sys.exc_info()))
+
+        return super().setup(f, tb)
+
+    def print_stack_entry(
+        self,
+        frame_lineno: tuple[FrameType, int],
+        prompt_prefix="\n-> ",
+        context=None,
+    ):
         if not self.console:
             return super().print_stack_entry(frame_lineno, prompt_prefix, context)
 
-        import reprlib
-
-        if context is None:
-            context = self.context
-        try:
-            context = int(context)
-            if context <= 0:
-                self.message("Context must be a positive integer")
-        except (TypeError, ValueError):
-            self.message("Context must be a positive integer")
+        if self.skip_print_stack_entry:
+            self.skip_print_stack_entry = False
+            return
 
         frame, lineno = frame_lineno
-
-        # s = filename + '(' + `lineno` + ')'
-        filename = self.canonic(frame.f_code.co_filename)
-
-        func = str(frame.f_code.co_name) if frame.f_code.co_name else "<lambda>"
-
-        loc_frame = self._get_frame_locals(frame)
-        call = ""
-        if func != "?":
-            args = (
-                reprlib.repr(loc_frame["__args__"]) if "__args__" in loc_frame else "()"
-            )
-            call = f"{func}{args}"
-
-        self.message(f"🔴 {filename}([white]{lineno}[/])[cyan]{call}[/]")
-
-        start = lineno - 1 - context // 2
-        lines = linecache.getlines(filename)
-        start = min(start, len(lines) - context)
-        start = max(start, 0)
-        lines = lines[start : start + context]
-        code = Syntax(
-            "".join(lines),
-            lexer="python",
-            theme=self.syntax_theme,
-            line_numbers=True,
-            highlight_lines={lineno},
-            start_line=start + 1,
-            line_range=(0, context),
+        traceback = TracebackType(
+            tb_next=None, tb_frame=frame, tb_lasti=frame.f_lasti, tb_lineno=lineno
         )
-
-        self.message(code, end="")
+        # use ValueError as a dummy exception
+        tb = Traceback.from_exception(ValueError, ValueError(""), traceback)
+        for stack in tb.trace.stacks:
+            stack.is_cause = False
+            stack.exc_type = ""
+            stack.exc_value = ""
+        self.message(tb)
 
     def print_list_lines(self, filename: str, first: int, last: int):
         if not self.console:
