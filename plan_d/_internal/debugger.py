@@ -14,9 +14,10 @@ from contextlib import suppress
 from termios import tcdrain
 from types import TracebackType
 from typing import TYPE_CHECKING
+from typing import Concatenate
+from typing import ParamSpec
 from typing import TextIO
-
-import click
+from typing import cast
 
 from IPython.core.alias import Alias
 from IPython.terminal.debugger import TerminalPdb
@@ -37,9 +38,12 @@ from prompt_toolkit.layout.processors import HighlightMatchingBracketProcessor
 from prompt_toolkit.output.vt100 import Vt100_Output as Vt100Output
 from rich import box
 from rich._inspect import Inspect
+from rich.console import Console
+from rich.console import ConsoleDimensions
 from rich.style import Style
 from rich.syntax import Syntax
 from rich.table import Table
+from rich.theme import Theme
 from rich.traceback import Frame
 from rich.traceback import Stack
 from rich.traceback import Trace
@@ -54,8 +58,6 @@ if TYPE_CHECKING:
     from types import FrameType
     from typing import Callable
 
-    from rich.console import Console
-
 
 def default_hello_message(ip: str, port: int) -> str:
     return f"RemotePdb session open at {ip}:{port}, use 'plan-d debug {ip} {port}' to connect..."
@@ -63,6 +65,26 @@ def default_hello_message(ip: str, port: int) -> str:
 
 def default_accepted_message(client_address: str) -> str:
     return f"RemotePdb accepted connection from {client_address}."
+
+
+_ConsolePrintArgs = ParamSpec("_ConsolePrintArgs")
+
+
+if TYPE_CHECKING:
+
+    def as_console_printer_builder(
+        f: Callable[Concatenate[Console, _ConsolePrintArgs], None],
+    ) -> Callable[
+        [Callable],
+        Callable[_ConsolePrintArgs, None],
+    ]: ...
+
+    as_console_printer = as_console_printer_builder(Console.print)
+
+else:
+
+    def as_console_printer(f):
+        return f
 
 
 class RemoteDebugger(RemoteIPythonDebugger):
@@ -110,7 +132,16 @@ class RemoteDebugger(RemoteIPythonDebugger):
 
         self.use_rawinput = True
         self.done_callback = None
-        self.console = console
+        self.console = console or Console(
+            file=stdout,
+            stderr=True,
+            force_terminal=True,
+            force_interactive=True,
+            tab_size=4,
+            theme=Theme(
+                {"info": "dim cyan", "warning": "magenta", "danger": "bold red"}
+            ),
+        )
         self.syntax_theme = syntax_theme
         self.skip_print_stack_entry = False
 
@@ -119,13 +150,13 @@ class RemoteDebugger(RemoteIPythonDebugger):
     def start(cls, sock_fd: int):
         assert cls._get_current_instance() is None
         term_data = receive_message(sock_fd)
+        term_size: tuple[int, int]
         term_attrs, term_type, term_size = (
             term_data["term_attrs"],
             term_data["term_type"],
             term_data["term_size"],
         )
         rows, cols = term_size
-        utils.set_rich_console_size(cols, rows)
         with PTY.open() as pty:
             pty.resize(rows, cols)
             pty.set_tty_attrs(term_attrs)
@@ -138,6 +169,7 @@ class RemoteDebugger(RemoteIPythonDebugger):
                 slave_writer = os.fdopen(pty.slave_fd, "w")
                 try:
                     instance = cls(slave_reader, slave_writer, term_type)
+                    instance.console.size = ConsoleDimensions(cols, rows)
                     cls._set_current_instance(instance)
                     yield instance
                 except Exception:
@@ -187,7 +219,7 @@ class RemoteDebugger(RemoteIPythonDebugger):
 
         The debugger interface to %pinfo, i.e., obj?.
         """
-        with self.dumb_term(), self.disable_console():
+        with self.dumb_term():
             return super().do_pinfo(arg)
 
     def do_pinfo2(self, arg):
@@ -196,7 +228,7 @@ class RemoteDebugger(RemoteIPythonDebugger):
 
         The debugger interface to %pinfo2, i.e., obj??.
         """
-        with self.dumb_term(), self.disable_console():
+        with self.dumb_term():
             return super().do_pinfo2(arg)
 
     # These commands is referenced from https://github.com/cansarigol/pdbr/tree/master/pdbr
@@ -233,7 +265,7 @@ class RemoteDebugger(RemoteIPythonDebugger):
 
     do_ia = do_inspectall
 
-    # =========== override ===========
+    # =========== override methods ===========
 
     def onecmd(self, line: str) -> bool:
         """
@@ -242,7 +274,7 @@ class RemoteDebugger(RemoteIPythonDebugger):
         (unless an overridden 'postcmd()' behaves differently)
         """
         try:
-            with self.redirect_stdio():
+            with self.redirect_std_stream_to_console():
                 line = line.strip()
                 if line.startswith("%"):
                     if line.startswith("%%"):
@@ -259,34 +291,22 @@ class RemoteDebugger(RemoteIPythonDebugger):
             self.error(f"{type(e).__qualname__} in onecmd({line!r}): {e}")
             return False
 
-    def error(self, msg: str, end="\n") -> None:
-        if self.console:
-            self.console.print(f"[danger]{msg}[/]", end=end)
-        else:
-            msg = click.style(msg, fg="red")
-            print(f"{msg}", file=self.stdout, end=end)
+    @as_console_printer
+    def error(self, *args, **kwargs) -> None:
+        self.console.print(*args, **kwargs)
 
-    def message(self, *msgs, end="\n", **console_opts) -> None:
-        console_opts.setdefault("soft_wrap", True)
-        if self.console:
-            self.console.print(*msgs, end=end, **console_opts)
-        else:
-            print("\n".join(map(str, msgs)), file=self.stdout, end=end)
+    @as_console_printer
+    def message(self, *args, **kwargs) -> None:
+        self.console.print(*args, **kwargs)
 
     def setup(self, f: FrameType | None, tb: TracebackType | None) -> None:
         if tb:
-            if self.console:
-                self.console.print_exception(word_wrap=True)
-                self.skip_print_stack_entry = True
-            else:
-                self.message(*traceback.format_exception(*sys.exc_info()))
+            self.console.print_exception(word_wrap=True)
+            self.skip_print_stack_entry = True
 
         return super().setup(f, tb)
 
     def print_stack_trace(self, context=None):
-        if not self.console:
-            return super().print_stack_trace(context)
-
         tb = Traceback(
             Trace(
                 stacks=[
@@ -314,9 +334,6 @@ class RemoteDebugger(RemoteIPythonDebugger):
         prompt_prefix="\n-> ",
         context=None,
     ):
-        if not self.console:
-            return super().print_stack_entry(frame_lineno, prompt_prefix, context)
-
         if self.skip_print_stack_entry:
             self.skip_print_stack_entry = False
             return
@@ -336,9 +353,6 @@ class RemoteDebugger(RemoteIPythonDebugger):
         self.message(tb, soft_wrap=False)
 
     def print_list_lines(self, filename: str, first: int, last: int):
-        if not self.console:
-            return super().print_list_lines(filename, first, last)
-
         codes = Syntax.from_path(
             filename,
             line_numbers=True,
@@ -351,9 +365,6 @@ class RemoteDebugger(RemoteIPythonDebugger):
     def print_topics(
         self, header: str, cmds: list[str] | None, cmdlen: int, maxcol: int
     ) -> None:
-        if not self.console:
-            return super().print_topics(header, cmds, cmdlen, maxcol)
-
         cmds = cmds or []
         # Get the console width
         console_width = self.console.width
@@ -441,7 +452,7 @@ class RemoteDebugger(RemoteIPythonDebugger):
         return result
 
     @contextmanager
-    def redirect_stdio(self):
+    def redirect_std_stream_to_console(self):
         class StdoutWrapper(io.StringIO):
             def __init__(self, debugger: RemoteDebugger):
                 self.debugger = debugger
@@ -470,13 +481,6 @@ class RemoteDebugger(RemoteIPythonDebugger):
         os.environ["TERM"] = "dumb"
         yield
         os.environ["TERM"] = origin_term
-
-    @contextmanager
-    def disable_console(self):
-        origin_console = self.console
-        self.console = None
-        yield
-        self.console = origin_console
 
     def get_variables(self) -> list[tuple[str, str, str]]:
         curframe = self.curframe
@@ -562,8 +566,10 @@ class Piping(_Piping):
             if src_fd == self.client_fd and (
                 term_size := utils.try_deserialize_terminal_size(data)
             ):
-                rows, cols = term_size
-                utils.set_rich_console_size(cols, rows)
+                if debugger := RemoteDebugger._get_current_instance():
+                    rows, cols = term_size
+                    debugger = cast(RemoteDebugger, debugger)
+                    debugger.console.size = ConsoleDimensions(cols, rows)
                 self.pty.resize(*term_size)
                 return
         except OSError:
