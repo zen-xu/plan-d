@@ -283,7 +283,7 @@ class RemoteDebugger(RemoteIPythonDebugger):
     def setup(self, f: FrameType | None, tb: TracebackType | None) -> None:
         if tb:
             if self.console:
-                self.console.print_exception()
+                self.console.print_exception(word_wrap=True)
                 self.skip_print_stack_entry = True
             else:
                 self.message(*traceback.format_exception(*sys.exc_info()))
@@ -308,12 +308,14 @@ class RemoteDebugger(RemoteIPythonDebugger):
             tb_next=None, tb_frame=frame, tb_lasti=frame.f_lasti, tb_lineno=lineno
         )
         # use ValueError as a dummy exception
-        tb = Traceback.from_exception(ValueError, ValueError(""), traceback)
+        tb = Traceback.from_exception(
+            ValueError, ValueError(""), traceback, word_wrap=True
+        )
         for stack in tb.trace.stacks:
             stack.is_cause = False
             stack.exc_type = ""
             stack.exc_value = ""
-        self.message(tb)
+        self.message(tb, soft_wrap=False)
 
     def print_list_lines(self, filename: str, first: int, last: int):
         if not self.console:
