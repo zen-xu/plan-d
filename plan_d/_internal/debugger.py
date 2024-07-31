@@ -11,6 +11,7 @@ from contextlib import contextmanager
 from contextlib import nullcontext
 from contextlib import redirect_stderr
 from contextlib import redirect_stdout
+from contextlib import suppress
 from termios import tcdrain
 from typing import TYPE_CHECKING
 from typing import TextIO
@@ -43,6 +44,18 @@ if TYPE_CHECKING:
     from typing import Callable
 
     from rich.console import Console
+
+RICH_INSTALLED = False
+
+with suppress(ImportError):
+    from rich import box
+    from rich._inspect import Inspect
+    from rich.style import Style
+    from rich.syntax import Syntax
+    from rich.table import Table
+    from rich.tree import Tree
+
+    RICH_INSTALLED = True
 
 
 def default_hello_message(ip: str, port: int) -> str:
@@ -186,6 +199,44 @@ class RemoteDebugger(RemoteIPythonDebugger):
         with self.dumb_term(), self.disable_console():
             return super().do_pinfo2(arg)
 
+    if RICH_INSTALLED:
+        # These commands enabled rich is installed
+        #
+        # Referenced from https://github.com/cansarigol/pdbr/tree/master/pdbr
+
+        def do_v(self, arg):
+            """v(ars)
+            List of local variables
+            """
+            self.message(self.get_vars_table())
+
+        do_vars = do_v
+
+        def do_varstree(self, arg):
+            """varstree | vt
+            List of local variables in Rich.Tree
+            """
+            self.message(self.get_vars_tree())
+
+        do_vt = do_varstree
+
+        def do_inspect(self, arg, all=False):
+            """(i)nspect
+            Display the data / methods / docs for any Python object.
+            """
+            with suppress(BaseException):
+                self.message(Inspect(self._getval(arg), methods=True, all=all))
+
+        do_i = do_inspect
+
+        def do_inspectall(self, arg):
+            """inspectall | ia
+            Inspect with all to see all attributes.
+            """
+            self.do_inspect(arg, all=True)
+
+        do_ia = do_inspectall
+
     # =========== override ===========
 
     def onecmd(self, line: str) -> bool:
@@ -231,8 +282,6 @@ class RemoteDebugger(RemoteIPythonDebugger):
             return super().print_stack_entry(frame_lineno, prompt_prefix, context)
 
         import reprlib
-
-        from rich.syntax import Syntax
 
         if context is None:
             context = self.context
@@ -281,8 +330,6 @@ class RemoteDebugger(RemoteIPythonDebugger):
         if not self.console:
             return super().print_list_lines(filename, first, last)
 
-        from rich.syntax import Syntax
-
         codes = Syntax.from_path(
             filename,
             line_numbers=True,
@@ -297,10 +344,6 @@ class RemoteDebugger(RemoteIPythonDebugger):
     ) -> None:
         if not self.console:
             return super().print_topics(header, cmds, cmdlen, maxcol)
-
-        from rich import box
-        from rich.style import Style
-        from rich.table import Table
 
         cmds = cmds or []
         # Get the console width
@@ -425,6 +468,51 @@ class RemoteDebugger(RemoteIPythonDebugger):
         self.console = None
         yield
         self.console = origin_console
+
+    def get_variables(self) -> list[tuple[str, str, str]]:
+        curframe = self.curframe
+        if curframe is None:
+            return []
+
+        return [
+            (k, str(v), str(type(v)))
+            for k, v in curframe.f_locals.items()
+            if not k.startswith("__")
+        ]
+
+    def get_vars_table(self):
+        variables = self.get_variables()
+        if not variables:
+            return
+        table = Table(title="List of local variables", box=box.MINIMAL)
+
+        table.add_column("Variable", style="cyan")
+        table.add_column("Value", style="magenta")
+        table.add_column("Type", style="green")
+        [table.add_row(variable, value, _type) for variable, value, _type in variables]
+        return table
+
+    def get_vars_tree(self) -> Tree | None:
+        variables = self.get_variables()
+        if not variables:
+            return None
+        tree_key = ""
+        type_tree = None
+        tree = Tree("Variables")
+
+        for variable, value, _type in sorted(
+            variables, key=lambda item: (item[2], item[0])
+        ):
+            if tree_key != _type:
+                if tree_key != "" and type_tree:
+                    tree.add(type_tree, style="bold green")
+                type_tree = Tree(_type)
+                tree_key = _type
+            if type_tree:
+                type_tree.add(f"{variable}: {value}", style="magenta")
+        if type_tree:
+            tree.add(type_tree, style="bold green")
+        return tree
 
 
 def call_magic_fn(alias: Alias, rest):
