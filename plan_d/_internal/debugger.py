@@ -359,6 +359,7 @@ class RemoteDebugger(RemoteIPythonDebugger):
             theme=self.syntax_theme,
             line_range=(first, last),
             highlight_lines={self.curframe.f_lineno},  # type: ignore[attr-defined]
+            indent_guides=True,
         )
         self.message(codes)
 
