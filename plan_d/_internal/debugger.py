@@ -59,8 +59,6 @@ class RemoteDebugger(RemoteIPythonDebugger):
         stdin: TextIO,
         stdout: TextIO,
         term_type: str | None,
-        height: int,
-        width: int,
         console: Console | None = None,
         syntax_theme: str = "ansi_dark",
         **extra_pt_session_options,
@@ -100,8 +98,6 @@ class RemoteDebugger(RemoteIPythonDebugger):
 
         self.use_rawinput = True
         self.done_callback = None
-        self.height = height
-        self.width = width
         self.console = console
         self.syntax_theme = syntax_theme
 
@@ -115,8 +111,10 @@ class RemoteDebugger(RemoteIPythonDebugger):
             term_data["term_type"],
             term_data["term_size"],
         )
+        rows, cols = term_size
+        utils.set_rich_console_size(cols, rows)
         with PTY.open() as pty:
-            pty.resize(term_size[0], term_size[1])
+            pty.resize(rows, cols)
             pty.set_tty_attrs(term_attrs)
             pty.make_ctty()
             piping = Piping(
@@ -126,7 +124,7 @@ class RemoteDebugger(RemoteIPythonDebugger):
                 slave_reader = os.fdopen(pty.slave_fd, "r")
                 slave_writer = os.fdopen(pty.slave_fd, "w")
                 try:
-                    instance = cls(slave_reader, slave_writer, term_type, *term_size)
+                    instance = cls(slave_reader, slave_writer, term_type)
                     cls._set_current_instance(instance)
                     yield instance
                 except Exception:
@@ -427,13 +425,6 @@ class RemoteDebugger(RemoteIPythonDebugger):
         yield
         self.console = origin_console
 
-    def resize(self, height: int, width: int):
-        self.height = height
-        self.width = width
-        if self.console:
-            self.console.height = height
-            self.console.width = width
-
 
 def call_magic_fn(alias: Alias, rest):
     cmd = alias.cmd
@@ -474,9 +465,7 @@ class Piping(_Piping):
                 term_size := utils.try_deserialize_terminal_size(data)
             ):
                 rows, cols = term_size
-                # rich console will use COLUMNS and ROWS as terminal size
-                os.environ["COLUMNS"] = str(cols)
-                os.environ["ROWS"] = str(rows)
+                utils.set_rich_console_size(cols, rows)
                 self.pty.resize(*term_size)
                 return
         except OSError:
