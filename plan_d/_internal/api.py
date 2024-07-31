@@ -17,6 +17,8 @@ from madbg import client as madbg_client
 from madbg.communication import Piping
 from madbg.communication import send_message
 from madbg.utils import use_context
+from rich.console import Console
+from rich.theme import Theme
 
 from . import utils
 from .debugger import RemoteDebugger
@@ -26,7 +28,6 @@ if TYPE_CHECKING:
     from types import FrameType
     from types import TracebackType
 
-    from rich.console import Console
 
 ENV_VAR_IP = "PLAND_IP"
 ENV_VAR_PORT = "PLAND_PORT"
@@ -122,21 +123,14 @@ def _config_debugger(
         prompt += " "
     debugger.prompt = prompt
 
-    if not console:
-        with suppress(ImportError):
-            from rich.console import Console
-            from rich.theme import Theme
-
-            console = Console(
-                file=debugger.stdout,
-                stderr=True,
-                force_terminal=True,
-                force_interactive=True,
-                tab_size=4,
-                theme=Theme(
-                    {"info": "dim cyan", "warning": "magenta", "danger": "bold red"}
-                ),
-            )
+    console = console or Console(
+        file=debugger.stdout,
+        stderr=True,
+        force_terminal=True,
+        force_interactive=True,
+        tab_size=4,
+        theme=Theme({"info": "dim cyan", "warning": "magenta", "danger": "bold red"}),
+    )
 
     if os.getenv(ENV_VAR_DISABLE_RICH, "no").lower() in ["1", "true", "yes"]:
         debugger.console = None
