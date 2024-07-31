@@ -9,4 +9,27 @@
             "source.fixAll": "explicit",
         }
     },
+    "cSpell.words": [
+        "cmdlen",
+        "ctty",
+        "curframe",
+        "getval",
+        "inspectall",
+        "interactiveshell",
+        "lasti",
+        "madbg",
+        "maxcol",
+        "nspect",
+        "pdef",
+        "pdoc",
+        "pinfo",
+        "PLAND",
+        "ptutils",
+        "signum",
+        "SIGWINCH",
+        "tcdrain",
+        "tcgetattr",
+        "varstree",
+        "ZhengYu"
+    ],
 }
