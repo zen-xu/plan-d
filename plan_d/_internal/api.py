@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import os
 import signal
+import sys
+import traceback as tb
 
 from contextlib import suppress
 from inspect import currentframe
@@ -9,17 +11,21 @@ from pdb import Pdb
 from termios import tcdrain
 from typing import TYPE_CHECKING
 from typing import Callable
+from typing import cast
 
 from IPython.core.debugger import Pdb as IPdb
 from madbg import client as madbg_client
 from madbg.communication import Piping
 from madbg.communication import send_message
+from madbg.utils import use_context
 
 from . import utils
+from .debugger import RemoteDebugger
 
 
 if TYPE_CHECKING:
     from types import FrameType
+    from types import TracebackType
 
     from rich.console import Console
 
@@ -46,10 +52,6 @@ def set_trace(
     console: Console | None = None,
     syntax_theme: str | None = None,
 ) -> None:
-    from madbg.utils import use_context
-
-    from .debugger import RemoteDebugger
-
     frame = frame or currentframe().f_back  # type: ignore[union-attr]
     assert frame
 
@@ -73,6 +75,53 @@ def set_trace(
             accepted_message=accepted_message,
         )
     )
+    debugger = _config_debugger(debugger, prompt, console, syntax_theme)
+    debugger.set_trace(frame, done_callback=exit_stack.close)
+
+
+def post_mortem(
+    traceback: TracebackType | None = None,
+    ip: str | None = None,
+    port: int | None = None,
+    hello_message: Callable[[str, int], str] | None = None,
+    accepted_message: Callable[[str], str] | None = None,
+    prompt: str | None = None,
+    console: Console | None = None,
+    syntax_theme: str | None = None,
+) -> None:
+    traceback = traceback or sys.exc_info()[2] or sys.last_traceback
+    ip = ip or str(os.getenv(ENV_VAR_IP, DEFAULT_IP))
+    if os.getenv(ENV_VAR_AUTO_SELECT_PORT, "no").lower() in [
+        "1",
+        "yes",
+        "true",
+    ]:
+        default_port = 0
+    else:
+        default_port = DEFAULT_PORT
+    port = port or int(os.getenv(ENV_VAR_PORT, default_port))
+
+    with RemoteDebugger.connect_and_start(
+        ip,
+        port,
+        hello_message=hello_message,
+        accepted_message=accepted_message,
+    ) as debugger:
+        debugger = cast(RemoteDebugger, debugger)
+        debugger = _config_debugger(debugger, prompt, console, syntax_theme)
+        if debugger.console:
+            debugger.console.print_exception()
+        else:
+            debugger.message(*tb.format_exception(*sys.exc_info()))
+        debugger.post_mortem(traceback)
+
+
+def _config_debugger(
+    debugger: RemoteDebugger,
+    prompt: str | None = None,
+    console: Console | None = None,
+    syntax_theme: str | None = None,
+) -> RemoteDebugger:
     prompt = prompt or DEFAULT_PROMPT
     if not prompt.endswith(" "):
         prompt += " "
@@ -112,7 +161,7 @@ def set_trace(
         with suppress(AttributeError):
             delattr(IPdb, f"do_{ban_cmd}")
 
-    debugger.set_trace(frame, done_callback=exit_stack.close)
+    return debugger
 
 
 def connect_to_debugger(
