@@ -219,9 +219,9 @@ class RemoteDebugger(RemoteIPythonDebugger):
             msg = click.style(msg, fg="red")
             print(f"{msg}", file=self.stdout, end=end)
 
-    def message(self, *msgs, end="\n") -> None:
+    def message(self, *msgs, end="\n", **console_opts) -> None:
         if self.console:
-            self.console.print(*msgs, end=end)
+            self.console.print(*msgs, end=end, **console_opts)
         else:
             print("\n".join(map(str, msgs)), file=self.stdout, end=end)
 
