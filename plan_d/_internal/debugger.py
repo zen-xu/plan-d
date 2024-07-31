@@ -35,6 +35,16 @@ from prompt_toolkit.input.vt100 import Vt100Input
 from prompt_toolkit.layout.processors import ConditionalProcessor
 from prompt_toolkit.layout.processors import HighlightMatchingBracketProcessor
 from prompt_toolkit.output.vt100 import Vt100_Output as Vt100Output
+from rich import box
+from rich._inspect import Inspect
+from rich.style import Style
+from rich.syntax import Syntax
+from rich.table import Table
+from rich.traceback import Frame
+from rich.traceback import Stack
+from rich.traceback import Trace
+from rich.traceback import Traceback
+from rich.tree import Tree
 
 from . import utils
 
@@ -45,22 +55,6 @@ if TYPE_CHECKING:
     from typing import Callable
 
     from rich.console import Console
-
-RICH_INSTALLED = False
-
-with suppress(ImportError):
-    from rich import box
-    from rich._inspect import Inspect
-    from rich.style import Style
-    from rich.syntax import Syntax
-    from rich.table import Table
-    from rich.traceback import Frame
-    from rich.traceback import Stack
-    from rich.traceback import Trace
-    from rich.traceback import Traceback
-    from rich.tree import Tree
-
-    RICH_INSTALLED = True
 
 
 def default_hello_message(ip: str, port: int) -> str:
@@ -205,43 +199,39 @@ class RemoteDebugger(RemoteIPythonDebugger):
         with self.dumb_term(), self.disable_console():
             return super().do_pinfo2(arg)
 
-    if RICH_INSTALLED:
-        # These commands enabled rich is installed
-        #
-        # Referenced from https://github.com/cansarigol/pdbr/tree/master/pdbr
+    # These commands is referenced from https://github.com/cansarigol/pdbr/tree/master/pdbr
+    def do_v(self, arg):
+        """v(ars)
+        List of local variables
+        """
+        self.message(self.get_vars_table())
 
-        def do_v(self, arg):
-            """v(ars)
-            List of local variables
-            """
-            self.message(self.get_vars_table())
+    do_vars = do_v
 
-        do_vars = do_v
+    def do_varstree(self, arg):
+        """varstree | vt
+        List of local variables in Rich.Tree
+        """
+        self.message(self.get_vars_tree())
 
-        def do_varstree(self, arg):
-            """varstree | vt
-            List of local variables in Rich.Tree
-            """
-            self.message(self.get_vars_tree())
+    do_vt = do_varstree
 
-        do_vt = do_varstree
+    def do_inspect(self, arg, all=False):
+        """(i)nspect
+        Display the data / methods / docs for any Python object.
+        """
+        with suppress(BaseException):
+            self.message(Inspect(self._getval(arg), methods=True, all=all))
 
-        def do_inspect(self, arg, all=False):
-            """(i)nspect
-            Display the data / methods / docs for any Python object.
-            """
-            with suppress(BaseException):
-                self.message(Inspect(self._getval(arg), methods=True, all=all))
+    do_i = do_inspect
 
-        do_i = do_inspect
+    def do_inspectall(self, arg):
+        """inspectall | ia
+        Inspect with all to see all attributes.
+        """
+        self.do_inspect(arg, all=True)
 
-        def do_inspectall(self, arg):
-            """inspectall | ia
-            Inspect with all to see all attributes.
-            """
-            self.do_inspect(arg, all=True)
-
-        do_ia = do_inspectall
+    do_ia = do_inspectall
 
     # =========== override ===========
 
