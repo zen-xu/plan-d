@@ -54,6 +54,9 @@ with suppress(ImportError):
     from rich.style import Style
     from rich.syntax import Syntax
     from rich.table import Table
+    from rich.traceback import Frame
+    from rich.traceback import Stack
+    from rich.traceback import Trace
     from rich.traceback import Traceback
     from rich.tree import Tree
 
@@ -289,6 +292,31 @@ class RemoteDebugger(RemoteIPythonDebugger):
                 self.message(*traceback.format_exception(*sys.exc_info()))
 
         return super().setup(f, tb)
+
+    def print_stack_trace(self, context=None):
+        if not self.console:
+            return super().print_stack_trace(context)
+
+        tb = Traceback(
+            Trace(
+                stacks=[
+                    Stack(
+                        is_cause=False,
+                        exc_type="",
+                        exc_value="",
+                        frames=[
+                            Frame(
+                                frame.f_code.co_filename,
+                                lineno=lineno,
+                                name=frame.f_code.co_name,
+                            )
+                            for frame, lineno in self.stack
+                        ],
+                    )
+                ]
+            )
+        )
+        self.message(tb, soft_wrap=False)
 
     def print_stack_entry(
         self,
