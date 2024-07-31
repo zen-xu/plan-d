@@ -34,9 +34,3 @@ def try_deserialize_terminal_size(data: bytes) -> tuple[int, int] | None:
 def get_terminal_size():
     tty_handle = madbg_client.get_tty_handle()
     return os.get_terminal_size(tty_handle)
-
-
-def set_rich_console_size(cols: int, rows: int):
-    # rich console will use COLUMNS and ROWS as terminal size
-    os.environ["COLUMNS"] = str(cols)
-    os.environ["ROWS"] = str(rows)

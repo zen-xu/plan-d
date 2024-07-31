@@ -17,8 +17,6 @@ from madbg import client as madbg_client
 from madbg.communication import Piping
 from madbg.communication import send_message
 from madbg.utils import use_context
-from rich.console import Console
-from rich.theme import Theme
 
 from . import utils
 from .debugger import RemoteDebugger
@@ -27,6 +25,8 @@ from .debugger import RemoteDebugger
 if TYPE_CHECKING:
     from types import FrameType
     from types import TracebackType
+
+    from rich.console import Console
 
 
 ENV_VAR_IP = "PLAND_IP"
@@ -123,21 +123,7 @@ def _config_debugger(
         prompt += " "
     debugger.prompt = prompt
 
-    console = console or Console(
-        file=debugger.stdout,
-        stderr=True,
-        force_terminal=True,
-        force_interactive=True,
-        tab_size=4,
-        theme=Theme({"info": "dim cyan", "warning": "magenta", "danger": "bold red"}),
-    )
-
-    if os.getenv(ENV_VAR_DISABLE_RICH, "no").lower() in ["1", "true", "yes"]:
-        debugger.console = None
-    else:
-        if console:
-            # Leave as None to auto-detect width.
-            console.size = (None, None)  # type: ignore[assignment]
+    if console:
         debugger.console = console
 
     if syntax_theme:
@@ -159,7 +145,7 @@ def connect_to_debugger(
     timeout=madbg_client.DEFAULT_CONNECT_TIMEOUT,
     in_fd=madbg_client.STDIN_FILENO,
     out_fd=madbg_client.STDOUT_FILENO,
-):
+) -> None:
     with madbg_client.connect_to_server(ip, port, timeout) as socket:
         tty_handle = madbg_client.get_tty_handle()
         term_size = utils.get_terminal_size()

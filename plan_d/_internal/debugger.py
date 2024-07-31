@@ -10,13 +10,13 @@ from contextlib import contextmanager
 from contextlib import nullcontext
 from contextlib import redirect_stderr
 from contextlib import redirect_stdout
-from contextlib import suppress
 from termios import tcdrain
 from types import TracebackType
 from typing import TYPE_CHECKING
+from typing import Concatenate
+from typing import ParamSpec
 from typing import TextIO
-
-import click
+from typing import cast
 
 from IPython.core.alias import Alias
 from IPython.terminal.debugger import TerminalPdb
@@ -37,10 +37,18 @@ from prompt_toolkit.layout.processors import HighlightMatchingBracketProcessor
 from prompt_toolkit.output.vt100 import Vt100_Output as Vt100Output
 from rich import box
 from rich._inspect import Inspect
+from rich.console import Console
+from rich.console import ConsoleDimensions
+from rich.console import Group
+from rich.console import RenderableType
+from rich.panel import Panel
+from rich.pretty import Pretty
 from rich.style import Style
 from rich.syntax import Syntax
 from rich.table import Table
+from rich.theme import Theme
 from rich.traceback import Frame
+from rich.traceback import PathHighlighter
 from rich.traceback import Stack
 from rich.traceback import Trace
 from rich.traceback import Traceback
@@ -52,9 +60,11 @@ from . import utils
 if TYPE_CHECKING:
     from contextlib import AbstractContextManager
     from types import FrameType
+    from typing import Any
     from typing import Callable
+    from typing import Iterable
 
-    from rich.console import Console
+    from rich.text import Text
 
 
 def default_hello_message(ip: str, port: int) -> str:
@@ -63,6 +73,26 @@ def default_hello_message(ip: str, port: int) -> str:
 
 def default_accepted_message(client_address: str) -> str:
     return f"RemotePdb accepted connection from {client_address}."
+
+
+_ConsolePrintArgs = ParamSpec("_ConsolePrintArgs")
+
+
+if TYPE_CHECKING:
+
+    def as_console_printer_builder(
+        f: Callable[Concatenate[Console, _ConsolePrintArgs], None],
+    ) -> Callable[
+        [Callable],
+        Callable[_ConsolePrintArgs, None],
+    ]: ...
+
+    as_console_printer = as_console_printer_builder(Console.print)
+
+else:
+
+    def as_console_printer(f):
+        return f
 
 
 class RemoteDebugger(RemoteIPythonDebugger):
@@ -110,7 +140,16 @@ class RemoteDebugger(RemoteIPythonDebugger):
 
         self.use_rawinput = True
         self.done_callback = None
-        self.console = console
+        self.console = console or Console(
+            file=stdout,
+            stderr=True,
+            force_terminal=True,
+            force_interactive=True,
+            tab_size=4,
+            theme=Theme(
+                {"info": "dim cyan", "warning": "magenta", "danger": "bold red"}
+            ),
+        )
         self.syntax_theme = syntax_theme
         self.skip_print_stack_entry = False
 
@@ -119,13 +158,13 @@ class RemoteDebugger(RemoteIPythonDebugger):
     def start(cls, sock_fd: int):
         assert cls._get_current_instance() is None
         term_data = receive_message(sock_fd)
+        term_size: tuple[int, int]
         term_attrs, term_type, term_size = (
             term_data["term_attrs"],
             term_data["term_type"],
             term_data["term_size"],
         )
         rows, cols = term_size
-        utils.set_rich_console_size(cols, rows)
         with PTY.open() as pty:
             pty.resize(rows, cols)
             pty.set_tty_attrs(term_attrs)
@@ -138,6 +177,7 @@ class RemoteDebugger(RemoteIPythonDebugger):
                 slave_writer = os.fdopen(pty.slave_fd, "w")
                 try:
                     instance = cls(slave_reader, slave_writer, term_type)
+                    instance.console.size = ConsoleDimensions(cols, rows)
                     cls._set_current_instance(instance)
                     yield instance
                 except Exception:
@@ -187,8 +227,14 @@ class RemoteDebugger(RemoteIPythonDebugger):
 
         The debugger interface to %pinfo, i.e., obj?.
         """
-        with self.dumb_term(), self.disable_console():
-            return super().do_pinfo(arg)
+        self.do_inspect(
+            arg,
+            help=True,
+            subclasses=True,
+            value=False,
+            methods=False,
+            attrs=False,
+        )
 
     def do_pinfo2(self, arg):
         """
@@ -196,8 +242,15 @@ class RemoteDebugger(RemoteIPythonDebugger):
 
         The debugger interface to %pinfo2, i.e., obj??.
         """
-        with self.dumb_term(), self.disable_console():
-            return super().do_pinfo2(arg)
+        self.do_inspect(
+            arg,
+            help=True,
+            subclasses=True,
+            value=False,
+            methods=False,
+            attrs=False,
+            source=True,
+        )
 
     # These commands is referenced from https://github.com/cansarigol/pdbr/tree/master/pdbr
     def do_v(self, arg):
@@ -216,12 +269,15 @@ class RemoteDebugger(RemoteIPythonDebugger):
 
     do_vt = do_varstree
 
-    def do_inspect(self, arg, all=False):
+    def do_inspect(self, arg, **kwargs):
         """(i)nspect
         Display the data / methods / docs for any Python object.
         """
-        with suppress(BaseException):
-            self.message(Inspect(self._getval(arg), methods=True, all=all))
+        kwargs.setdefault("all", False)
+        kwargs.setdefault("methods", True)
+        if isinstance(arg, str):
+            arg = self._getval(arg)
+        self.message(PinfoInspect(arg, syntax_theme=self.syntax_theme, **kwargs))
 
     do_i = do_inspect
 
@@ -233,7 +289,7 @@ class RemoteDebugger(RemoteIPythonDebugger):
 
     do_ia = do_inspectall
 
-    # =========== override ===========
+    # =========== override methods ===========
 
     def onecmd(self, line: str) -> bool:
         """
@@ -242,7 +298,7 @@ class RemoteDebugger(RemoteIPythonDebugger):
         (unless an overridden 'postcmd()' behaves differently)
         """
         try:
-            with self.redirect_stdio():
+            with self.redirect_std_stream_to_console():
                 line = line.strip()
                 if line.startswith("%"):
                     if line.startswith("%%"):
@@ -259,34 +315,22 @@ class RemoteDebugger(RemoteIPythonDebugger):
             self.error(f"{type(e).__qualname__} in onecmd({line!r}): {e}")
             return False
 
-    def error(self, msg: str, end="\n") -> None:
-        if self.console:
-            self.console.print(f"[danger]{msg}[/]", end=end)
-        else:
-            msg = click.style(msg, fg="red")
-            print(f"{msg}", file=self.stdout, end=end)
+    @as_console_printer
+    def error(self, msg, *args, **kwargs) -> None:
+        self.console.print(msg, *args, **kwargs)
 
-    def message(self, *msgs, end="\n", **console_opts) -> None:
-        console_opts.setdefault("soft_wrap", True)
-        if self.console:
-            self.console.print(*msgs, end=end, **console_opts)
-        else:
-            print("\n".join(map(str, msgs)), file=self.stdout, end=end)
+    @as_console_printer
+    def message(self, msg, *args, **kwargs) -> None:
+        self.console.print(msg, *args, **kwargs)
 
     def setup(self, f: FrameType | None, tb: TracebackType | None) -> None:
         if tb:
-            if self.console:
-                self.console.print_exception(word_wrap=True)
-                self.skip_print_stack_entry = True
-            else:
-                self.message(*traceback.format_exception(*sys.exc_info()))
+            self.console.print_exception(word_wrap=True)
+            self.skip_print_stack_entry = True
 
         return super().setup(f, tb)
 
     def print_stack_trace(self, context=None):
-        if not self.console:
-            return super().print_stack_trace(context)
-
         tb = Traceback(
             Trace(
                 stacks=[
@@ -314,9 +358,6 @@ class RemoteDebugger(RemoteIPythonDebugger):
         prompt_prefix="\n-> ",
         context=None,
     ):
-        if not self.console:
-            return super().print_stack_entry(frame_lineno, prompt_prefix, context)
-
         if self.skip_print_stack_entry:
             self.skip_print_stack_entry = False
             return
@@ -336,24 +377,19 @@ class RemoteDebugger(RemoteIPythonDebugger):
         self.message(tb, soft_wrap=False)
 
     def print_list_lines(self, filename: str, first: int, last: int):
-        if not self.console:
-            return super().print_list_lines(filename, first, last)
-
         codes = Syntax.from_path(
             filename,
             line_numbers=True,
             theme=self.syntax_theme,
             line_range=(first, last),
             highlight_lines={self.curframe.f_lineno},  # type: ignore[attr-defined]
+            indent_guides=True,
         )
         self.message(codes)
 
     def print_topics(
         self, header: str, cmds: list[str] | None, cmdlen: int, maxcol: int
     ) -> None:
-        if not self.console:
-            return super().print_topics(header, cmds, cmdlen, maxcol)
-
         cmds = cmds or []
         # Get the console width
         console_width = self.console.width
@@ -441,7 +477,7 @@ class RemoteDebugger(RemoteIPythonDebugger):
         return result
 
     @contextmanager
-    def redirect_stdio(self):
+    def redirect_std_stream_to_console(self):
         class StdoutWrapper(io.StringIO):
             def __init__(self, debugger: RemoteDebugger):
                 self.debugger = debugger
@@ -462,21 +498,6 @@ class RemoteDebugger(RemoteIPythonDebugger):
 
         with redirect_stdout(StdoutWrapper(self)), redirect_stderr(StderrWrapper(self)):
             yield
-
-    @contextmanager
-    def dumb_term(self):
-        # disable IPython.core.page to page output
-        origin_term = os.getenv("TERM", "dumb")
-        os.environ["TERM"] = "dumb"
-        yield
-        os.environ["TERM"] = origin_term
-
-    @contextmanager
-    def disable_console(self):
-        origin_console = self.console
-        self.console = None
-        yield
-        self.console = origin_console
 
     def get_variables(self) -> list[tuple[str, str, str]]:
         curframe = self.curframe
@@ -562,8 +583,10 @@ class Piping(_Piping):
             if src_fd == self.client_fd and (
                 term_size := utils.try_deserialize_terminal_size(data)
             ):
-                rows, cols = term_size
-                utils.set_rich_console_size(cols, rows)
+                if debugger := RemoteDebugger._get_current_instance():
+                    rows, cols = term_size
+                    debugger = cast(RemoteDebugger, debugger)
+                    debugger.console.size = ConsoleDimensions(cols, rows)
                 self.pty.resize(*term_size)
                 return
         except OSError:
@@ -577,3 +600,75 @@ class Piping(_Piping):
                 self._remove_writer(src_fd)
             if not self.readers_to_writers:
                 self.loop.stop()
+
+
+class PinfoInspect(Inspect):
+    def __init__(
+        self,
+        obj: Any,
+        *,
+        title: str | Text | None = None,
+        help: bool = False,
+        methods: bool = False,
+        docs: bool = True,
+        private: bool = False,
+        dunder: bool = False,
+        sort: bool = True,
+        all: bool = True,
+        value: bool = True,
+        source: bool = False,
+        subclasses: bool = False,
+        syntax_theme: str = "ansi_dark",
+        attrs: bool = True,
+    ) -> None:
+        super().__init__(
+            obj,
+            title=title,
+            help=help,
+            methods=methods,
+            docs=docs,
+            private=private,
+            dunder=dunder,
+            sort=sort,
+            all=all,
+            value=value,
+        )
+        self.subclasses = subclasses
+        self.source = source
+        self.attrs = attrs
+        self.syntax_theme = syntax_theme
+
+    def _render(self) -> Iterable[RenderableType]:
+        renders = list(super()._render())
+        if self.attrs:
+            yield from renders
+        else:
+            yield from [obj for obj in renders if not isinstance(obj, Table)]
+
+        if self.subclasses and (
+            subclasses := getattr(self.obj, "__subclasses__", None)
+        ):
+            yield ""
+            yield Panel(
+                Group(
+                    *[
+                        Pretty(subclass, highlighter=self.highlighter)
+                        for subclass in subclasses()
+                    ]
+                ),
+                title="subclasses",
+                border_style="scope.border",
+            )
+
+        if self.source and (file_path := getattr(self.obj, "__file__", None)):
+            yield ""
+            yield Panel(
+                Syntax.from_path(
+                    file_path,
+                    lexer="python",
+                    line_numbers=False,
+                    theme=self.syntax_theme,
+                ),
+                title=PathHighlighter()(file_path),
+                border_style="scope.border",
+            )
