@@ -10,7 +10,6 @@ from contextlib import contextmanager
 from contextlib import nullcontext
 from contextlib import redirect_stderr
 from contextlib import redirect_stdout
-from contextlib import suppress
 from termios import tcdrain
 from types import TracebackType
 from typing import TYPE_CHECKING
@@ -40,11 +39,16 @@ from rich import box
 from rich._inspect import Inspect
 from rich.console import Console
 from rich.console import ConsoleDimensions
+from rich.console import Group
+from rich.console import RenderableType
+from rich.panel import Panel
+from rich.pretty import Pretty
 from rich.style import Style
 from rich.syntax import Syntax
 from rich.table import Table
 from rich.theme import Theme
 from rich.traceback import Frame
+from rich.traceback import PathHighlighter
 from rich.traceback import Stack
 from rich.traceback import Trace
 from rich.traceback import Traceback
@@ -56,7 +60,11 @@ from . import utils
 if TYPE_CHECKING:
     from contextlib import AbstractContextManager
     from types import FrameType
+    from typing import Any
     from typing import Callable
+    from typing import Iterable
+
+    from rich.text import Text
 
 
 def default_hello_message(ip: str, port: int) -> str:
@@ -219,8 +227,14 @@ class RemoteDebugger(RemoteIPythonDebugger):
 
         The debugger interface to %pinfo, i.e., obj?.
         """
-        with self.dumb_term():
-            return super().do_pinfo(arg)
+        self.do_inspect(
+            arg,
+            help=True,
+            subclasses=True,
+            value=False,
+            methods=False,
+            attrs=False,
+        )
 
     def do_pinfo2(self, arg):
         """
@@ -228,8 +242,15 @@ class RemoteDebugger(RemoteIPythonDebugger):
 
         The debugger interface to %pinfo2, i.e., obj??.
         """
-        with self.dumb_term():
-            return super().do_pinfo2(arg)
+        self.do_inspect(
+            arg,
+            help=True,
+            subclasses=True,
+            value=False,
+            methods=False,
+            attrs=False,
+            source=True,
+        )
 
     # These commands is referenced from https://github.com/cansarigol/pdbr/tree/master/pdbr
     def do_v(self, arg):
@@ -248,12 +269,15 @@ class RemoteDebugger(RemoteIPythonDebugger):
 
     do_vt = do_varstree
 
-    def do_inspect(self, arg, all=False):
+    def do_inspect(self, arg, **kwargs):
         """(i)nspect
         Display the data / methods / docs for any Python object.
         """
-        with suppress(BaseException):
-            self.message(Inspect(self._getval(arg), methods=True, all=all))
+        kwargs.setdefault("all", False)
+        kwargs.setdefault("methods", True)
+        if isinstance(arg, str):
+            arg = self._getval(arg)
+        self.message(PinfoInspect(arg, syntax_theme=self.syntax_theme, **kwargs))
 
     do_i = do_inspect
 
@@ -292,12 +316,12 @@ class RemoteDebugger(RemoteIPythonDebugger):
             return False
 
     @as_console_printer
-    def error(self, *args, **kwargs) -> None:
-        self.console.print(*args, **kwargs)
+    def error(self, msg, *args, **kwargs) -> None:
+        self.console.print(msg, *args, **kwargs)
 
     @as_console_printer
-    def message(self, *args, **kwargs) -> None:
-        self.console.print(*args, **kwargs)
+    def message(self, msg, *args, **kwargs) -> None:
+        self.console.print(msg, *args, **kwargs)
 
     def setup(self, f: FrameType | None, tb: TracebackType | None) -> None:
         if tb:
@@ -475,14 +499,6 @@ class RemoteDebugger(RemoteIPythonDebugger):
         with redirect_stdout(StdoutWrapper(self)), redirect_stderr(StderrWrapper(self)):
             yield
 
-    @contextmanager
-    def dumb_term(self):
-        # disable IPython.core.page to page output
-        origin_term = os.getenv("TERM", "dumb")
-        os.environ["TERM"] = "dumb"
-        yield
-        os.environ["TERM"] = origin_term
-
     def get_variables(self) -> list[tuple[str, str, str]]:
         curframe = self.curframe
         if curframe is None:
@@ -584,3 +600,75 @@ class Piping(_Piping):
                 self._remove_writer(src_fd)
             if not self.readers_to_writers:
                 self.loop.stop()
+
+
+class PinfoInspect(Inspect):
+    def __init__(
+        self,
+        obj: Any,
+        *,
+        title: str | Text | None = None,
+        help: bool = False,
+        methods: bool = False,
+        docs: bool = True,
+        private: bool = False,
+        dunder: bool = False,
+        sort: bool = True,
+        all: bool = True,
+        value: bool = True,
+        source: bool = False,
+        subclasses: bool = False,
+        syntax_theme: str = "ansi_dark",
+        attrs: bool = True,
+    ) -> None:
+        super().__init__(
+            obj,
+            title=title,
+            help=help,
+            methods=methods,
+            docs=docs,
+            private=private,
+            dunder=dunder,
+            sort=sort,
+            all=all,
+            value=value,
+        )
+        self.subclasses = subclasses
+        self.source = source
+        self.attrs = attrs
+        self.syntax_theme = syntax_theme
+
+    def _render(self) -> Iterable[RenderableType]:
+        renders = list(super()._render())
+        if self.attrs:
+            yield from renders
+        else:
+            yield from [obj for obj in renders if not isinstance(obj, Table)]
+
+        if self.subclasses and (
+            subclasses := getattr(self.obj, "__subclasses__", None)
+        ):
+            yield ""
+            yield Panel(
+                Group(
+                    *[
+                        Pretty(subclass, highlighter=self.highlighter)
+                        for subclass in subclasses()
+                    ]
+                ),
+                title="subclasses",
+                border_style="scope.border",
+            )
+
+        if self.source and (file_path := getattr(self.obj, "__file__", None)):
+            yield ""
+            yield Panel(
+                Syntax.from_path(
+                    file_path,
+                    lexer="python",
+                    line_numbers=False,
+                    theme=self.syntax_theme,
+                ),
+                title=PathHighlighter()(file_path),
+                border_style="scope.border",
+            )
