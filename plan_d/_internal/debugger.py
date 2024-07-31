@@ -220,6 +220,7 @@ class RemoteDebugger(RemoteIPythonDebugger):
             print(f"{msg}", file=self.stdout, end=end)
 
     def message(self, *msgs, end="\n", **console_opts) -> None:
+        console_opts.setdefault("soft_wrap", True)
         if self.console:
             self.console.print(*msgs, end=end, **console_opts)
         else:
