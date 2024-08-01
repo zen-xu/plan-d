@@ -17,7 +17,7 @@ Python Language's Another Nonpareil remote Debugger
   - [Gallery](#gallery)
     - [Debugger commands](#debugger-commands)
     - [Print object info](#print-object-info)
-    - [IPython magic func](#ipython-magic-func)
+    - [IPython magic command](#ipython-magic-command)
   - [Auto launch debugger when exception](#auto-launch-debugger-when-exception)
   - [FAQ](#faq)
     - [How to exit the debugger?](#how-to-exit-the-debugger)
@@ -34,7 +34,7 @@ Python Language's Another Nonpareil remote Debugger
 - 🔴 Breakpoint management
 - 🔎 Variable inspection
 - 🔄 Terminal size auto-adjustment
-- 🪄 Support for IPython magic functions
+- 🪄 Support for IPython magic commands
 - 🐍 Support for multiple Python versions
 
 ## Installation
@@ -100,10 +100,10 @@ On the server side, you can set a breakpoint with `plan_d.set_trace()`. When the
   <img src="https://zenxu-github-asset.s3.us-east-2.amazonaws.com/plan-d/pland-pinfo2.jpg">
 </figure>
 
-### IPython magic func
+### IPython magic command
 
 <figure class="image">
-  <figcaption style="text-align: center;">magic func</figcaption>
+  <figcaption style="text-align: center;">magic command</figcaption>
   <img src="https://zenxu-github-asset.s3.us-east-2.amazonaws.com/plan-d/pland-magic.jpg">
 </figure>
 
