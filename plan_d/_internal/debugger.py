@@ -45,6 +45,8 @@ from . import utils
 
 
 if TYPE_CHECKING:
+    import socket
+
     from contextlib import AbstractContextManager
     from types import FrameType
     from typing import Any, Callable, Iterable
@@ -205,6 +207,16 @@ class RemoteDebugger(RemoteIPythonDebugger):
                 flush=True,
             )
         return cls.start_from_new_connection(sock)
+
+    @classmethod
+    @contextmanager
+    def start_from_new_connection(cls, sock: socket.socket):
+        # mute the madbg start_from_new_connection
+        try:
+            with cls.start(sock.fileno()) as debugger:
+                yield debugger
+        finally:
+            sock.close()
 
     # =========== commands ===========
 
