@@ -193,6 +193,31 @@ else:
 @contextmanager
 @like_post_mortem_args
 def launch_pland_on_exception(*args, **kwargs) -> Generator[None, None, None]:
+    """
+    Automatically launch plan-d debugger when an exception is raised.
+
+    `launch_pland_on_exception` can be used as a context manager or a decorator.
+
+    .. code-block:: python
+        import plan_d
+
+
+        def func1():
+            with plan_d.launch_pland_on_exception():
+                value1 = 1
+                value2 = 2
+                result = value1 + value2 / 0
+                return result
+
+
+        @plan_d.launch_pland_on_exception()
+        def func2():
+            value1 = 1
+            value2 = 2
+            result = value1 + value2 / 0
+            return result
+    """
+
     __tracebackhide__ = True
     try:
         yield
