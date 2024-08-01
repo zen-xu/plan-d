@@ -9,6 +9,8 @@ jobs:
   pypi-release:
     name: Release
     runs-on: ubuntu-latest
+    environment:
+      name: Release
     steps:
       - uses: actions/checkout@v4
 
