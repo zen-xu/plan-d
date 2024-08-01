@@ -468,9 +468,9 @@ class RemoteDebugger(RemoteIPythonDebugger):
             if isinstance(magic_fn, Alias):
                 stdout, stderr = call_magic_fn(magic_fn, arg)
                 if stdout:
-                    self.message(Text.from_ansi(stdout))
+                    self.message(Text.from_ansi(stdout).plain)
                 if stderr:
-                    self.error(Text.from_ansi(stdout))
+                    self.error(Text.from_ansi(stderr).plain)
                     return ""
             else:
                 if magic_name in ("time", "timeit"):
@@ -496,7 +496,7 @@ class RemoteDebugger(RemoteIPythonDebugger):
                 self.debugger = debugger
 
             def write(self, data):
-                self.debugger.message(Text.from_ansi(data), end="")
+                self.debugger.message(Text.from_ansi(data).plain, end="")
 
             def flush(self): ...
 
@@ -505,7 +505,7 @@ class RemoteDebugger(RemoteIPythonDebugger):
                 self.debugger = debugger
 
             def write(self, data):
-                self.debugger.error(data, end="")
+                self.debugger.error(Text.from_ansi(data), end="")
 
             def flush(self): ...
 
