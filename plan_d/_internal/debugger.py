@@ -330,6 +330,7 @@ class RemoteDebugger(RemoteIPythonDebugger):
                                 name=frame.f_code.co_name,
                             )
                             for frame, lineno in self.stack
+                            if frame.f_locals.get("__tracebackhide__") is not True
                         ],
                     )
                 ]

@@ -48,6 +48,7 @@
         "tcdrain",
         "tcgetattr",
         "topo",
+        "tracebackhide",
         "varstree",
         "ZhengYu"
     ],

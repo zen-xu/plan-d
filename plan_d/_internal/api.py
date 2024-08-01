@@ -8,8 +8,17 @@ from contextlib import suppress
 from inspect import currentframe
 from pdb import Pdb
 from termios import tcdrain
-from typing import TYPE_CHECKING, Callable, cast
+from typing import (
+    TYPE_CHECKING,
+    Callable,
+    Concatenate,
+    Generator,
+    ParamSpec,
+    TypeVar,
+    cast,
+)
 
+from decorator import contextmanager
 from IPython.core.debugger import Pdb as IPdb
 from madbg import client as madbg_client
 from madbg.communication import Piping, send_message
@@ -162,3 +171,60 @@ def connect_to_debugger(
             socket_fd = socket.fileno()
             Piping({in_fd: {socket_fd}, socket_fd: {out_fd}}).run()
             tcdrain(out_fd)
+
+
+_P = ParamSpec("_P")
+_T = TypeVar("_T")
+
+if TYPE_CHECKING:
+    from types import TracebackType
+
+    def like_post_mortem_args_builder(
+        _: Callable[Concatenate[TracebackType | None, _P], None],
+    ) -> Callable[[Callable[..., _T]], Callable[_P, _T]]: ...
+
+    like_post_mortem_args = like_post_mortem_args_builder(post_mortem)
+else:
+
+    def like_post_mortem_args(f):
+        return f
+
+
+@contextmanager
+@like_post_mortem_args
+def launch_pland_on_exception(*args, **kwargs) -> Generator[None, None, None]:
+    """
+    Automatically launch plan-d debugger when an exception is raised.
+
+    `launch_pland_on_exception` can be used as a context manager or a decorator.
+
+    .. code-block:: python
+        import plan_d
+
+
+        def func1():
+            with plan_d.launch_pland_on_exception():
+                value1 = 1
+                value2 = 2
+                result = value1 + value2 / 0
+                return result
+
+
+        @plan_d.launch_pland_on_exception()
+        def func2():
+            value1 = 1
+            value2 = 2
+            result = value1 + value2 / 0
+            return result
+    """
+
+    __tracebackhide__ = True
+    try:
+        yield
+    except Exception:
+        _, m, tb = sys.exc_info()
+        print(m.__repr__(), file=sys.stderr)
+        post_mortem(tb, *args, **kwargs)
+        raise
+    finally:
+        pass
