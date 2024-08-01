@@ -485,6 +485,7 @@ class RemoteDebugger(RemoteIPythonDebugger):
                 else:
                     result = magic_fn(arg)
         if result is not None:
+            self.message("")
             self.message(result)
         return result
 
