@@ -37,6 +37,7 @@ from rich.pretty import Pretty
 from rich.style import Style
 from rich.syntax import Syntax
 from rich.table import Table
+from rich.text import Text
 from rich.theme import Theme
 from rich.traceback import Frame, PathHighlighter, Stack, Trace, Traceback
 from rich.tree import Tree
@@ -50,8 +51,6 @@ if TYPE_CHECKING:
     from contextlib import AbstractContextManager
     from types import FrameType
     from typing import Any, Callable, Iterable
-
-    from rich.text import Text
 
 
 def default_hello_message(ip: str, port: int) -> str:
@@ -469,9 +468,9 @@ class RemoteDebugger(RemoteIPythonDebugger):
             if isinstance(magic_fn, Alias):
                 stdout, stderr = call_magic_fn(magic_fn, arg)
                 if stdout:
-                    self.message(stdout)
+                    self.message(Text.from_ansi(stdout))
                 if stderr:
-                    self.error(stderr)
+                    self.error(Text.from_ansi(stdout))
                     return ""
             else:
                 if magic_name in ("time", "timeit"):
@@ -496,7 +495,7 @@ class RemoteDebugger(RemoteIPythonDebugger):
                 self.debugger = debugger
 
             def write(self, data):
-                self.debugger.message(data, end="")
+                self.debugger.message(Text.from_ansi(data), end="")
 
             def flush(self): ...
 
