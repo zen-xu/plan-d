@@ -18,7 +18,7 @@ from IPython.terminal.ptutils import IPythonPTLexer
 from madbg.communication import Piping as _Piping
 from madbg.communication import receive_message
 from madbg.debugger import RemoteIPythonDebugger
-from madbg.tty_utils import PTY
+from madbg.tty_utils import PTY, attach_ctty
 from madbg.utils import run_thread
 from prompt_toolkit.enums import DEFAULT_BUFFER
 from prompt_toolkit.filters import HasFocus, IsDone
@@ -144,8 +144,9 @@ class RemoteDebugger(RemoteIPythonDebugger):
 
     @classmethod
     @contextmanager
-    def start(cls, sock_fd: int):
+    def start(cls, sock: socket.socket):
         assert cls._get_current_instance() is None
+        sock_fd = sock.fileno()
         term_data = receive_message(sock_fd)
         term_size: tuple[int, int]
         term_attrs, term_type, term_size = (
@@ -157,7 +158,11 @@ class RemoteDebugger(RemoteIPythonDebugger):
         with PTY.open() as pty:
             pty.resize(rows, cols)
             pty.set_tty_attrs(term_attrs)
-            pty.make_ctty()
+            sock_address, _ = sock.getpeername()
+            if sock_address != "127.0.0.1":
+                pty.make_ctty()
+            else:
+                attach_ctty(pty.slave_fd)
             piping = Piping(
                 {sock_fd: {pty.master_fd}, pty.master_fd: {sock_fd}}, sock_fd, pty
             )
@@ -213,7 +218,7 @@ class RemoteDebugger(RemoteIPythonDebugger):
     def start_from_new_connection(cls, sock: socket.socket):
         # mute the madbg start_from_new_connection
         try:
-            with cls.start(sock.fileno()) as debugger:
+            with cls.start(sock) as debugger:
                 yield debugger
         finally:
             sock.close()
