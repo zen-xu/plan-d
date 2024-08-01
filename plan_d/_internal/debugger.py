@@ -88,6 +88,7 @@ class RemoteDebugger(RemoteIPythonDebugger):
         term_type: str | None,
         console: Console | None = None,
         syntax_theme: str = "ansi_dark",
+        exception_max_frames: int = 100,
         **extra_pt_session_options,
     ) -> None:
         # fix annoying `Warning: Input is not a terminal (fd=0)`
@@ -137,6 +138,7 @@ class RemoteDebugger(RemoteIPythonDebugger):
         )
         self.syntax_theme = syntax_theme
         self.skip_print_stack_entry = False
+        self.exception_max_frames = exception_max_frames
 
     @classmethod
     @contextmanager
@@ -310,7 +312,15 @@ class RemoteDebugger(RemoteIPythonDebugger):
 
     def setup(self, f: FrameType | None, tb: TracebackType | None) -> None:
         if tb:
-            self.console.print_exception(word_wrap=True)
+            import decorator
+
+            import plan_d
+
+            self.console.print_exception(
+                word_wrap=True,
+                suppress=[plan_d, decorator],
+                max_frames=self.exception_max_frames,
+            )
             self.skip_print_stack_entry = True
 
         return super().setup(f, tb)

@@ -93,6 +93,7 @@ def post_mortem(
     prompt: str | None = None,
     console: Console | None = None,
     syntax_theme: str | None = None,
+    exception_max_frames: int = 100,
 ) -> None:
     traceback = traceback or sys.exc_info()[2] or sys.last_traceback
     ip = ip or str(os.getenv(ENV_VAR_IP, DEFAULT_IP))
@@ -114,6 +115,7 @@ def post_mortem(
     ) as debugger:
         debugger = cast(RemoteDebugger, debugger)
         debugger = _config_debugger(debugger, prompt, console, syntax_theme)
+        debugger.exception_max_frames = exception_max_frames
         debugger.post_mortem(traceback)
 
 
