@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.0](https://github.com/zen-xu/plan_d/compare/0.1.0..0.2.0) - 2024-08-01
+
+### 🚀  Features
+
+- Support to disable magic command ([#36](https://github.com/zen-xu/plan_d/issues/36)) - ([eda8a9c](https://github.com/zen-xu/plan_d/commit/eda8a9c522468cce011913d490c0d13b72b9aa66))
+
+### 🐛 Bug Fixes
+
+- Magic result not in new line ([#34](https://github.com/zen-xu/plan_d/issues/34)) - ([3ebbfa6](https://github.com/zen-xu/plan_d/commit/3ebbfa62e3d7219c8a528fb9dfda18b3c6cb476b))
+- Magic command output may contain ansi color codes ([#33](https://github.com/zen-xu/plan_d/issues/33)) - ([2e7d191](https://github.com/zen-xu/plan_d/commit/2e7d19117dacc6c4bcf72ef3da39cb87e0a3cc20))
+
+### 🚜 Refactor
+
+- Print magic result plain text ([#35](https://github.com/zen-xu/plan_d/issues/35)) - ([6706be5](https://github.com/zen-xu/plan_d/commit/6706be5f1d44b3baae25f3445dea3b933c919658))
+
+### 📚 Documentation
+
+- Update README.md ([#31](https://github.com/zen-xu/plan_d/issues/31)) - ([84f96d6](https://github.com/zen-xu/plan_d/commit/84f96d6385ff190a5936fab3671c2d494fa015c2))
+
 ## [0.1.0] - 2024-08-01
 
 ### 🚀  Features

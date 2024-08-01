@@ -3,7 +3,7 @@ authors = ["ZhengYu, Xu <zen-xu@outlook.com>"]
 description = "Python Language's Another Nonpareil remote Debugger"
 name = "plan-d"
 readme = "README.md"
-version = "0.1.0" # version anchor
+version = "0.2.0" # version anchor
 license = "MIT"
 keywords = ["debugger", "remote", "ipython"]
 classifiers = [
@@ -44,7 +44,7 @@ requires      = ["poetry-core"]
 [tool.commitizen]
 bump_message   = "chore(release): bump version $current_version -> $new_version"
 pre_bump_hooks = ["./update-changelog.sh"]
-version        = "0.1.0"                                                       # version anchor
+version        = "0.2.0"                                                       # version anchor
 version_files  = ["pyproject.toml:version anchor", "plan_d/__init__.py"]
 
 [tool.ruff]
