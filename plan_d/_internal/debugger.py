@@ -36,7 +36,7 @@ from prompt_toolkit.layout.processors import ConditionalProcessor
 from prompt_toolkit.layout.processors import HighlightMatchingBracketProcessor
 from prompt_toolkit.output.vt100 import Vt100_Output as Vt100Output
 from rich import box
-from rich._inspect import Inspect
+from rich._inspect import Inspect as RichInspect
 from rich.console import Console
 from rich.console import ConsoleDimensions
 from rich.console import Group
@@ -277,7 +277,7 @@ class RemoteDebugger(RemoteIPythonDebugger):
         kwargs.setdefault("methods", True)
         if isinstance(arg, str):
             arg = self._getval(arg)
-        self.message(PinfoInspect(arg, syntax_theme=self.syntax_theme, **kwargs))
+        self.message(Inspect(arg, **kwargs))
 
     do_i = do_inspect
 
@@ -602,7 +602,7 @@ class Piping(_Piping):
                 self.loop.stop()
 
 
-class PinfoInspect(Inspect):
+class Inspect(RichInspect):
     def __init__(
         self,
         obj: Any,
@@ -618,7 +618,6 @@ class PinfoInspect(Inspect):
         value: bool = True,
         source: bool = False,
         subclasses: bool = False,
-        syntax_theme: str = "ansi_dark",
         attrs: bool = True,
     ) -> None:
         super().__init__(
@@ -636,7 +635,6 @@ class PinfoInspect(Inspect):
         self.subclasses = subclasses
         self.source = source
         self.attrs = attrs
-        self.syntax_theme = syntax_theme
 
     def _render(self) -> Iterable[RenderableType]:
         renders = list(super()._render())
@@ -666,9 +664,9 @@ class PinfoInspect(Inspect):
                 Syntax.from_path(
                     file_path,
                     lexer="python",
-                    line_numbers=False,
-                    theme=self.syntax_theme,
+                    line_numbers=True,
                 ),
+                box=box.SIMPLE,
                 title=PathHighlighter()(file_path),
                 border_style="scope.border",
             )
