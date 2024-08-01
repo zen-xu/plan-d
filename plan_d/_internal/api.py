@@ -56,6 +56,7 @@ def set_trace(
     prompt: str | None = None,
     console: Console | None = None,
     syntax_theme: str | None = None,
+    disable_magic_cmd: bool | None = None,
 ) -> None:
     frame = frame or currentframe().f_back  # type: ignore[union-attr]
     assert frame
@@ -80,7 +81,9 @@ def set_trace(
             accepted_message=accepted_message,
         )
     )
-    debugger = _config_debugger(debugger, prompt, console, syntax_theme)
+    debugger = _config_debugger(
+        debugger, prompt, console, syntax_theme, disable_magic_cmd
+    )
     debugger.set_trace(frame, done_callback=exit_stack.close)
 
 
@@ -93,6 +96,7 @@ def post_mortem(
     prompt: str | None = None,
     console: Console | None = None,
     syntax_theme: str | None = None,
+    disable_magic_cmd: bool | None = None,
     exception_max_frames: int = 100,
 ) -> None:
     traceback = traceback or sys.exc_info()[2] or sys.last_traceback
@@ -114,7 +118,9 @@ def post_mortem(
         accepted_message=accepted_message,
     ) as debugger:
         debugger = cast(RemoteDebugger, debugger)
-        debugger = _config_debugger(debugger, prompt, console, syntax_theme)
+        debugger = _config_debugger(
+            debugger, prompt, console, syntax_theme, disable_magic_cmd
+        )
         debugger.exception_max_frames = exception_max_frames
         debugger.post_mortem(traceback)
 
@@ -124,6 +130,7 @@ def _config_debugger(
     prompt: str | None = None,
     console: Console | None = None,
     syntax_theme: str | None = None,
+    disable_magic_cmd: bool | None = None,
 ) -> RemoteDebugger:
     prompt = prompt or DEFAULT_PROMPT
     if not prompt.endswith(" "):
@@ -135,6 +142,9 @@ def _config_debugger(
 
     if syntax_theme:
         debugger.syntax_theme = syntax_theme
+
+    if disable_magic_cmd is not None:
+        debugger.disable_magic_cmd = disable_magic_cmd
 
     for ban_cmd in BAN_CMDS:
         with suppress(AttributeError):

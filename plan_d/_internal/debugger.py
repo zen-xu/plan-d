@@ -90,6 +90,7 @@ class RemoteDebugger(RemoteIPythonDebugger):
         console: Console | None = None,
         syntax_theme: str = "ansi_dark",
         exception_max_frames: int = 100,
+        disable_magic_cmd: bool = False,
         **extra_pt_session_options,
     ) -> None:
         # fix annoying `Warning: Input is not a terminal (fd=0)`
@@ -140,6 +141,7 @@ class RemoteDebugger(RemoteIPythonDebugger):
         self.syntax_theme = syntax_theme
         self.skip_print_stack_entry = False
         self.exception_max_frames = exception_max_frames
+        self.disable_magic_cmd = disable_magic_cmd
 
     @classmethod
     @contextmanager
@@ -303,7 +305,7 @@ class RemoteDebugger(RemoteIPythonDebugger):
         try:
             with self.redirect_std_stream_to_console():
                 line = line.strip()
-                if line.startswith("%"):
+                if line.startswith("%") and not self.disable_magic_cmd:
                     if line.startswith("%%"):
                         self.error(
                             "Cell magics (multiline) are not yet supported. "
