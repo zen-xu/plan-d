@@ -74,7 +74,6 @@ extend-select = [
 ]
 
 [tool.ruff.lint.isort]
-force-single-line   = true
 known-first-party   = ["plan_d"]
 lines-after-imports = 2
 lines-between-types = 1

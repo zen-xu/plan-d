@@ -6,17 +6,10 @@ import subprocess
 import sys
 import traceback
 
-from contextlib import contextmanager
-from contextlib import nullcontext
-from contextlib import redirect_stderr
-from contextlib import redirect_stdout
+from contextlib import contextmanager, nullcontext, redirect_stderr, redirect_stdout
 from termios import tcdrain
 from types import TracebackType
-from typing import TYPE_CHECKING
-from typing import Concatenate
-from typing import ParamSpec
-from typing import TextIO
-from typing import cast
+from typing import TYPE_CHECKING, Concatenate, ParamSpec, TextIO, cast
 
 from IPython.core.alias import Alias
 from IPython.terminal.debugger import TerminalPdb
@@ -28,30 +21,24 @@ from madbg.debugger import RemoteIPythonDebugger
 from madbg.tty_utils import PTY
 from madbg.utils import run_thread
 from prompt_toolkit.enums import DEFAULT_BUFFER
-from prompt_toolkit.filters import HasFocus
-from prompt_toolkit.filters import IsDone
+from prompt_toolkit.filters import HasFocus, IsDone
 from prompt_toolkit.formatted_text import PygmentsTokens
 from prompt_toolkit.input.vt100 import Vt100Input
-from prompt_toolkit.layout.processors import ConditionalProcessor
-from prompt_toolkit.layout.processors import HighlightMatchingBracketProcessor
+from prompt_toolkit.layout.processors import (
+    ConditionalProcessor,
+    HighlightMatchingBracketProcessor,
+)
 from prompt_toolkit.output.vt100 import Vt100_Output as Vt100Output
 from rich import box
 from rich._inspect import Inspect as RichInspect
-from rich.console import Console
-from rich.console import ConsoleDimensions
-from rich.console import Group
-from rich.console import RenderableType
+from rich.console import Console, ConsoleDimensions, Group, RenderableType
 from rich.panel import Panel
 from rich.pretty import Pretty
 from rich.style import Style
 from rich.syntax import Syntax
 from rich.table import Table
 from rich.theme import Theme
-from rich.traceback import Frame
-from rich.traceback import PathHighlighter
-from rich.traceback import Stack
-from rich.traceback import Trace
-from rich.traceback import Traceback
+from rich.traceback import Frame, PathHighlighter, Stack, Trace, Traceback
 from rich.tree import Tree
 
 from . import utils
@@ -60,9 +47,7 @@ from . import utils
 if TYPE_CHECKING:
     from contextlib import AbstractContextManager
     from types import FrameType
-    from typing import Any
-    from typing import Callable
-    from typing import Iterable
+    from typing import Any, Callable, Iterable
 
     from rich.text import Text
 

@@ -8,14 +8,11 @@ from contextlib import suppress
 from inspect import currentframe
 from pdb import Pdb
 from termios import tcdrain
-from typing import TYPE_CHECKING
-from typing import Callable
-from typing import cast
+from typing import TYPE_CHECKING, Callable, cast
 
 from IPython.core.debugger import Pdb as IPdb
 from madbg import client as madbg_client
-from madbg.communication import Piping
-from madbg.communication import send_message
+from madbg.communication import Piping, send_message
 from madbg.utils import use_context
 
 from . import utils
@@ -23,8 +20,7 @@ from .debugger import RemoteDebugger
 
 
 if TYPE_CHECKING:
-    from types import FrameType
-    from types import TracebackType
+    from types import FrameType, TracebackType
 
     from rich.console import Console
 

@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import click
 
-from . import __version__
-from . import connect_to_debugger
+from . import __version__, connect_to_debugger
 
 
 @click.version_option(__version__, "-v", "--version")
