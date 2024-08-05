@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.1](https://github.com/zen-xu/plan_d/compare/0.2.0..0.2.1) - 2024-08-05
+
+### 🐛 Bug Fixes
+
+- Add encoding when fdopen slave_fd ([#37](https://github.com/zen-xu/plan_d/issues/37)) - ([da52e43](https://github.com/zen-xu/plan_d/commit/da52e432071a37704c9ae0593dba23f8bd13a31c))
+
 ## [0.2.0](https://github.com/zen-xu/plan_d/compare/0.1.0..0.2.0) - 2024-08-01
 
 ### 🚀  Features
