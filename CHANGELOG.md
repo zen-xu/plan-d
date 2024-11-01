@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.2](https://github.com/zen-xu/plan_d/compare/0.2.1..0.2.2) - 2024-11-01
+
+### 🚜 Refactor
+
+- Auto select port ([#49](https://github.com/zen-xu/plan_d/issues/49)) - ([1233a43](https://github.com/zen-xu/plan_d/commit/1233a43fbff47262413971d3ec4e3dce03cdf54c))
+- Use host ip as default ip ([#48](https://github.com/zen-xu/plan_d/issues/48)) - ([a49c5fa](https://github.com/zen-xu/plan_d/commit/a49c5fad60ae352ceed7513011c5aca78a826af4))
+
 ## [0.2.1](https://github.com/zen-xu/plan_d/compare/0.2.0..0.2.1) - 2024-08-05
 
 ### 🐛 Bug Fixes
