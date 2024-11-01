@@ -37,9 +37,6 @@ if TYPE_CHECKING:
 
 ENV_VAR_IP = "PLAND_IP"
 ENV_VAR_PORT = "PLAND_PORT"
-ENV_VAR_AUTO_SELECT_PORT = "PLAND_AUTO_SELECT_PORT"
-ENV_VAR_DISABLE_RICH = "PLAND_DISABLE_RICH"
-
 
 DEFAULT_IP = socket.gethostbyname(socket.gethostname())
 DEFAULT_PORT = 3513
@@ -63,16 +60,8 @@ def set_trace(
     assert frame
 
     ip = ip or str(os.getenv(ENV_VAR_IP, DEFAULT_IP))
-    if os.getenv(ENV_VAR_AUTO_SELECT_PORT, "no").lower() in [
-        "1",
-        "yes",
-        "true",
-    ]:
-        default_port = 0
-    else:
-        default_port = DEFAULT_PORT
-    port = port or int(os.getenv(ENV_VAR_PORT, default_port))
-
+    if port is None:
+        port = int(os.getenv(ENV_VAR_PORT, 0))
     debugger: RemoteDebugger
     debugger, exit_stack = use_context(
         RemoteDebugger.connect_and_start(
@@ -102,15 +91,8 @@ def post_mortem(
 ) -> None:
     traceback = traceback or sys.exc_info()[2] or sys.last_traceback
     ip = ip or str(os.getenv(ENV_VAR_IP, DEFAULT_IP))
-    if os.getenv(ENV_VAR_AUTO_SELECT_PORT, "no").lower() in [
-        "1",
-        "yes",
-        "true",
-    ]:
-        default_port = 0
-    else:
-        default_port = DEFAULT_PORT
-    port = port or int(os.getenv(ENV_VAR_PORT, default_port))
+    if port is None:
+        port = int(os.getenv(ENV_VAR_PORT, 0))
 
     with RemoteDebugger.connect_and_start(
         ip,
