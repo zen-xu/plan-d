@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import signal
+import socket
 import sys
 
 from contextlib import suppress
@@ -40,7 +41,7 @@ ENV_VAR_AUTO_SELECT_PORT = "PLAND_AUTO_SELECT_PORT"
 ENV_VAR_DISABLE_RICH = "PLAND_DISABLE_RICH"
 
 
-DEFAULT_IP = "localhost"
+DEFAULT_IP = socket.gethostbyname(socket.gethostname())
 DEFAULT_PORT = 3513
 DEFAULT_PROMPT = "plan-d> "
 
