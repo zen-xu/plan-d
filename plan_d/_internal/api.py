@@ -9,21 +9,14 @@ from contextlib import suppress
 from inspect import currentframe
 from pdb import Pdb
 from termios import tcdrain
-from typing import (
-    TYPE_CHECKING,
-    Callable,
-    Concatenate,
-    Generator,
-    ParamSpec,
-    TypeVar,
-    cast,
-)
+from typing import TYPE_CHECKING, Callable, Generator, TypeVar, cast
 
 from decorator import contextmanager
 from IPython.core.debugger import Pdb as IPdb
 from madbg import client as madbg_client
 from madbg.communication import Piping, send_message
 from madbg.utils import use_context
+from typing_extensions import Concatenate, ParamSpec
 
 from . import utils
 from .debugger import RemoteDebugger

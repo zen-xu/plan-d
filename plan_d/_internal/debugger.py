@@ -9,7 +9,7 @@ import traceback
 from contextlib import contextmanager, nullcontext, redirect_stderr, redirect_stdout
 from termios import tcdrain
 from types import TracebackType
-from typing import TYPE_CHECKING, Concatenate, ParamSpec, TextIO, cast
+from typing import TYPE_CHECKING, TextIO, cast
 
 from IPython.core.alias import Alias
 from IPython.terminal.debugger import TerminalPdb
@@ -41,6 +41,7 @@ from rich.text import Text
 from rich.theme import Theme
 from rich.traceback import Frame, PathHighlighter, Stack, Trace, Traceback
 from rich.tree import Tree
+from typing_extensions import Concatenate, ParamSpec
 
 from . import utils
 
