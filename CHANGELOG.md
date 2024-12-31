@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.3](https://github.com/zen-xu/plan_d/compare/0.2.2..0.2.3) - 2024-12-31
+
+### 🐛 Bug Fixes
+
+- Resolve imports error when python<3.11 ([#53](https://github.com/zen-xu/plan_d/issues/53)) - ([6c46ea0](https://github.com/zen-xu/plan_d/commit/6c46ea0db78f8080100882cb95502ea0df2f22f8))
+
 ## [0.2.2](https://github.com/zen-xu/plan_d/compare/0.2.1..0.2.2) - 2024-11-01
 
 ### 🚜 Refactor
