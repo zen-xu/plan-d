@@ -129,6 +129,21 @@ class RemoteDebugger(RemoteIPythonDebugger):
 
         self.use_rawinput = True
         self.done_callback = None
+
+        def stdout_write_wrapper(write):
+            def wrapper(*args, **kwargs):
+                while True:
+                    try:
+                        return write(*args, **kwargs)
+                    except io.BlockingIOError:
+                        import time
+
+                        time.sleep(0.01)
+
+            return wrapper
+
+        stdout.write = stdout_write_wrapper(stdout.write)  # type: ignore[method-assign]
+
         self.console = console or Console(
             file=stdout,
             stderr=True,
