@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.4](https://github.com/zen-xu/plan_d/compare/0.2.3..0.2.4) - 2025-05-06
+
+### 🐛 Bug Fixes
+
+- Add stdout write wrapper to handle BlockingIOError - ([436657b](https://github.com/zen-xu/plan_d/commit/436657b916ff28fb29d4e1dc16a30d37d53f8fce))
+
 ## [0.2.3](https://github.com/zen-xu/plan_d/compare/0.2.2..0.2.3) - 2024-12-31
 
 ### 🐛 Bug Fixes
